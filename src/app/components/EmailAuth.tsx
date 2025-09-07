@@ -40,7 +40,7 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
       // For now, we'll just store the user locally
       // In a real app, you'd send a magic link or verification code
       onLogin(email.trim(), name.trim() || undefined);
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
@@ -109,7 +109,7 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
       
       <div className="mt-4 text-center">
         <p className="text-xs text-gray-500">
-          No password required. We'll use your email to track your progress.
+          No password required. We&apos;ll use your email to track your progress.
         </p>
       </div>
     </div>

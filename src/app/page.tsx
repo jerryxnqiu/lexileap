@@ -57,7 +57,7 @@ export default function Home() {
                 Master vocabulary with intelligent quizzes
               </p>
               <p className="text-sm text-gray-500">
-                Powered by WordNet's comprehensive dictionary
+                Powered by WordNet&apos;s comprehensive dictionary
               </p>
             </div>
             

@@ -69,7 +69,7 @@ export function QuizQuestion({
       {/* Question Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          What does "{question.word}" mean?
+          What does &ldquo;{question.word}&rdquo; mean?
         </h2>
         <p className="text-gray-600">
           Choose the correct definition from the options below.
@@ -149,7 +149,7 @@ export function QuizQuestion({
                 <ul className="list-disc list-inside space-y-1">
                   {question.examples.map((example, index) => (
                     <li key={index} className="text-blue-700 italic">
-                      "{example}"
+                      &ldquo;{example}&rdquo;
                     </li>
                   ))}
                 </ul>

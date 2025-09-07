@@ -1,4 +1,4 @@
-import { WordData, WordNetJson } from '../types/wordnet';
+import { WordNetJson } from '../types/wordnet';
 
 export class WordNetService {
   private static cache: WordNetJson | null = null;

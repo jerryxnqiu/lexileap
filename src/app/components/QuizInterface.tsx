@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { QuizQuestion } from './QuizQuestion';
-import { QuizResults } from './QuizResults';
 import { QuizStats } from './QuizStats';
 import { User } from '../../types/user';
 import { WordData } from '../../types/wordnet';
@@ -24,12 +23,7 @@ export function QuizInterface({ user }: { user: User }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadWordNetData();
-    loadUserStats();
-  }, []);
-
-  const loadWordNetData = async () => {
+  const loadWordNetData = useCallback(async () => {
     try {
       const data = await WordNetService.getAllData();
       setWordNetData(data);
@@ -40,14 +34,19 @@ export function QuizInterface({ user }: { user: User }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const loadUserStats = () => {
+  const loadUserStats = useCallback(() => {
     const savedStats = localStorage.getItem(`lexileap_stats_${user.email}`);
     if (savedStats) {
       setQuizStats(JSON.parse(savedStats));
     }
-  };
+  }, [user.email]);
+
+  useEffect(() => {
+    loadWordNetData();
+    loadUserStats();
+  }, [loadWordNetData, loadUserStats]);
 
   const saveUserStats = (newStats: QuizStatsType) => {
     setQuizStats(newStats);
@@ -82,7 +81,6 @@ export function QuizInterface({ user }: { user: User }) {
 
     // Shuffle options
     const allOptions = [randomSense.definition, ...wrongOptions];
-    const correctIndex = 0;
     
     // Shuffle the array
     for (let i = allOptions.length - 1; i > 0; i--) {
