@@ -6,7 +6,7 @@ import { QuizStats } from './QuizStats';
 import { User } from '../../types/user';
 import { WordData } from '../../types/wordnet';
 import { QuizQuestion as QuizQuestionType, QuizStats as QuizStatsType } from '../../types/quiz';
-import { WordNetService } from '../../lib/wordnet';
+import { WordNetService } from '../../libs/wordnet';
 
 export function QuizInterface({ user }: { user: User }) {
   const [wordNetData, setWordNetData] = useState<Record<string, WordData> | null>(null);

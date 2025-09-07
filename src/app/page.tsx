@@ -62,6 +62,23 @@ export default function Home() {
             </div>
             
             <EmailAuth onLogin={handleLogin} />
+
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/wordnet/generate', { method: 'POST' })
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    alert(`Generation failed: ${data.error || res.statusText}`)
+                  } else {
+                    alert('WordNet generation triggered. Check Firebase Storage for output.')
+                  }
+                }}
+                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              >
+                Generate WordNet Data
+              </button>
+            </div>
             
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">
