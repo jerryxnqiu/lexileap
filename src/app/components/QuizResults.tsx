@@ -28,7 +28,7 @@ export function QuizResults({ score, totalQuestions, onRestart, onReview }: Quiz
     <div className="text-center space-y-6">
       <div className="space-y-2">
         <h2 className="text-3xl font-bold text-gray-900">Quiz Complete!</h2>
-        <p className="text-gray-600">Here's how you did:</p>
+        <p className="text-gray-600">Here&apos;s how you did:</p>
       </div>
 
       <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
