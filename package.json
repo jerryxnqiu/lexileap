@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate-wordnet": "npx tsx scripts/generate-wordnet-json.ts",
+    "prebuild": "npm run generate-wordnet"
   },
   "dependencies": {
     "react": "19.1.0",
