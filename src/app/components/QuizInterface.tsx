@@ -4,53 +4,18 @@ import { useState, useEffect } from 'react';
 import { QuizQuestion } from './QuizQuestion';
 import { QuizResults } from './QuizResults';
 import { QuizStats } from './QuizStats';
-
-interface User {
-  email: string;
-  name?: string;
-}
-
-interface WordSense {
-  word: string;
-  definition: string;
-  examples: string[];
-  synonyms: string[];
-  lexFileNum: string;
-  synsetOffset: string;
-}
-
-interface WordData {
-  wordId: string;
-  word: string;
-  pos: string;
-  senses: WordSense[];
-  antonyms: string[];
-  relatedWords: string[];
-}
-
-interface QuizQuestion {
-  word: string;
-  definition: string;
-  options: string[];
-  correctAnswer: number;
-  explanation: string;
-  examples: string[];
-}
-
-interface QuizStats {
-  totalQuestions: number;
-  correctAnswers: number;
-  currentStreak: number;
-  bestStreak: number;
-}
+import { User } from '../../types/user';
+import { WordData } from '../../types/wordnet';
+import { QuizQuestion as QuizQuestionType, QuizStats as QuizStatsType } from '../../types/quiz';
+import { WordNetService } from '../../lib/wordnet';
 
 export function QuizInterface({ user }: { user: User }) {
   const [wordNetData, setWordNetData] = useState<Record<string, WordData> | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<QuizQuestion | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<QuizQuestionType | null>(null);
   const [userAnswer, setUserAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [quizStats, setQuizStats] = useState<QuizStats>({
+  const [quizStats, setQuizStats] = useState<QuizStatsType>({
     totalQuestions: 0,
     correctAnswers: 0,
     currentStreak: 0,
@@ -66,11 +31,7 @@ export function QuizInterface({ user }: { user: User }) {
 
   const loadWordNetData = async () => {
     try {
-      const response = await fetch('/data/wordnet.json');
-      if (!response.ok) {
-        throw new Error('Failed to load WordNet data');
-      }
-      const data = await response.json();
+      const data = await WordNetService.getAllData();
       setWordNetData(data);
       generateNewQuestion(data);
     } catch (err) {
@@ -88,7 +49,7 @@ export function QuizInterface({ user }: { user: User }) {
     }
   };
 
-  const saveUserStats = (newStats: QuizStats) => {
+  const saveUserStats = (newStats: QuizStatsType) => {
     setQuizStats(newStats);
     localStorage.setItem(`lexileap_stats_${user.email}`, JSON.stringify(newStats));
   };
@@ -131,7 +92,7 @@ export function QuizInterface({ user }: { user: User }) {
     
     const newCorrectIndex = allOptions.findIndex(option => option === randomSense.definition);
 
-    const question: QuizQuestion = {
+    const question: QuizQuestionType = {
       word: randomSense.word,
       definition: randomSense.definition,
       options: allOptions,
