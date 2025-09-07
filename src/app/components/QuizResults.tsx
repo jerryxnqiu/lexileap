@@ -63,3 +63,5 @@ export function QuizResults({ score, totalQuestions, onRestart, onReview }: Quiz
     </div>
   );
 }
+
+

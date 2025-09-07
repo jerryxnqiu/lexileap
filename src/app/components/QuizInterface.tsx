@@ -228,3 +228,5 @@ export function QuizInterface({ user }: { user: User }) {
     </div>
   );
 }
+
+

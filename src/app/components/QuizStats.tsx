@@ -67,3 +67,5 @@ export function QuizStats({ stats }: QuizStatsProps) {
     </div>
   );
 }
+
+
