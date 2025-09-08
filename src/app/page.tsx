@@ -88,10 +88,7 @@ export default function Home() {
                 onClick={async () => {
                   try {
                     setWordnetSummary('Loading...');
-                    const storage = await getFirebaseStorage();
-                    const fileRef = ref(storage, 'data/wordnet.json');
-                    const url = await getDownloadURL(fileRef);
-                    const resp = await fetch(url, { cache: 'no-store' });
+                    const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const start = performance.now();
                     const data = await resp.json();
