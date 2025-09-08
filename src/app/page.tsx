@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { EmailAuth } from './components/EmailAuth';
-import { QuizInterface } from './components/QuizInterface';
-import { Header } from './components/Header';
+import { EmailAuth } from '@/app/components/EmailAuth';
+import { QuizInterface } from '@/app/components/QuizInterface';
+import { Header } from '@/app/components/Header';
 
 interface User {
   email: string;

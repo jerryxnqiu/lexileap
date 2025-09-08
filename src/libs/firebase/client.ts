@@ -89,10 +89,12 @@ export async function getFirebaseStorage() {
   return storage
 }
 
-export default {
+const firebaseClient = {
   initialize: initializeFirebase,
   getAuth: getFirebaseAuth,
   getDb: getFirebaseDb,
   getApp: getFirebaseApp,
   getStorage: getFirebaseStorage
-} 
+}
+
+export default firebaseClient

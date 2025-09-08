@@ -206,9 +206,8 @@ function parseIndexFile(filename: string): Map<string, string[]> {
 }
 
 async function processDataFileWithIndex(
-  filename: string, 
-  expectedPos: string, 
-  wordNetData: WordNetJson, 
+  filename: string,
+  wordNetData: WordNetJson,
   wordToSynsets: Map<string, string[]>
 ) {
   const filepath = path.join(WORDNET_DIR, filename)
@@ -240,7 +239,7 @@ async function processDataFileWithIndex(
   }
   
   // Process each word from the index
-  for (const [word, synsetOffsets] of wordToSynsets) {
+  for (const [, synsetOffsets] of wordToSynsets) {
     for (const synsetOffset of synsetOffsets) {
       const line = synsetMap.get(synsetOffset)
       if (!line) continue
@@ -361,7 +360,7 @@ async function processDataFileWithIndex(
   console.log(`✅ Processed ${count} synsets, ${validEntries} valid from ${filename}`)
 }
 
-async function processDataFile(filename: string, expectedPos: string, wordNetData: WordNetJson) {
+async function processDataFile(filename: string, wordNetData: WordNetJson) {
   const filepath = path.join(WORDNET_DIR, filename)
   if (!fs.existsSync(filepath)) {
     console.log(`⚠️  File not found: ${filename}`)
@@ -504,21 +503,25 @@ export async function generateWordNet(): Promise<{ jsonPath: string; csvPath: st
   
   // Process each part of speech using both index and data files
   const posMappings = [
-    { pos: 'n', dataFile: 'data.noun', indexFile: 'index.noun' },
-    { pos: 'v', dataFile: 'data.verb', indexFile: 'index.verb' },
-    { pos: 'a', dataFile: 'data.adj', indexFile: 'index.adj' },
-    { pos: 'r', dataFile: 'data.adv', indexFile: 'index.adv' }
+    { dataFile: 'data.noun', indexFile: 'index.noun' },
+    { dataFile: 'data.verb', indexFile: 'index.verb' },
+    { dataFile: 'data.adj', indexFile: 'index.adj' },
+    { dataFile: 'data.adv', indexFile: 'index.adv' }
   ]
   
-  for (const { pos, dataFile, indexFile } of posMappings) {
-    console.log(`📖 Processing ${pos} (${dataFile} + ${indexFile})...`)
+  for (const { dataFile, indexFile } of posMappings) {
+    console.log(`📖 Processing (${dataFile} + ${indexFile})...`)
     
     // Parse index file to get word-to-synset mappings
     const wordToSynsets = parseIndexFile(indexFile)
     console.log(`  Found ${wordToSynsets.size} words in index`)
     
-    // Process data file with index information
-    await processDataFileWithIndex(dataFile, pos, wordNetData, wordToSynsets)
+    if (wordToSynsets.size > 0) {
+      await processDataFileWithIndex(dataFile, wordNetData, wordToSynsets)
+    } else {
+      console.warn(`  ⚠️ Index empty for ${indexFile}, scanning ${dataFile}`)
+      await processDataFile(dataFile, wordNetData)
+    }
   }
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })

@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { QuizQuestion } from './QuizQuestion';
-import { QuizStats } from './QuizStats';
-import { User } from '../../types/user';
-import { WordData } from '../../types/wordnet';
-import { QuizQuestion as QuizQuestionType, QuizStats as QuizStatsType } from '../../types/quiz';
-import { WordNetService } from '../../libs/wordnet';
+import { QuizQuestion } from '@/app/components/QuizQuestion';
+import { QuizStats } from '@/app/components/QuizStats';
+import { User } from '@/types/user';
+import { WordData } from '@/types/wordnet';
+import { QuizQuestion as QuizQuestionType, QuizStats as QuizStatsType } from '@/types/quiz';
+import { WordNetService } from '@/libs/wordnet';
 
 export function QuizInterface({ user }: { user: User }) {
   const [wordNetData, setWordNetData] = useState<Record<string, WordData> | null>(null);
@@ -23,37 +23,7 @@ export function QuizInterface({ user }: { user: User }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadWordNetData = useCallback(async () => {
-    try {
-      const data = await WordNetService.getAllData();
-      setWordNetData(data);
-      generateNewQuestion(data);
-    } catch (err) {
-      setError('Failed to load vocabulary data. Please refresh the page.');
-      console.error('Error loading WordNet data:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const loadUserStats = useCallback(() => {
-    const savedStats = localStorage.getItem(`lexileap_stats_${user.email}`);
-    if (savedStats) {
-      setQuizStats(JSON.parse(savedStats));
-    }
-  }, [user.email]);
-
-  useEffect(() => {
-    loadWordNetData();
-    loadUserStats();
-  }, [loadWordNetData, loadUserStats]);
-
-  const saveUserStats = (newStats: QuizStatsType) => {
-    setQuizStats(newStats);
-    localStorage.setItem(`lexileap_stats_${user.email}`, JSON.stringify(newStats));
-  };
-
-  const generateNewQuestion = (data: Record<string, WordData>) => {
+  const generateNewQuestion = useCallback((data: Record<string, WordData>) => {
     const words = Object.values(data);
     const randomWord = words[Math.floor(Math.random() * words.length)];
     
@@ -96,13 +66,44 @@ export function QuizInterface({ user }: { user: User }) {
       options: allOptions,
       correctAnswer: newCorrectIndex,
       explanation: `"${randomSense.word}" is a ${randomWord.pos === 'n' ? 'noun' : randomWord.pos === 'v' ? 'verb' : randomWord.pos === 'a' ? 'adjective' : 'adverb'}.`,
-      examples: randomSense.examples.slice(0, 2) // Show up to 2 examples
+      examples: randomSense.examples.slice(0, 2)
     };
 
     setCurrentQuestion(question);
     setUserAnswer(null);
     setShowResult(false);
+  }, []);
+
+  const loadWordNetData = useCallback(async () => {
+    try {
+      const data = await WordNetService.getAllData();
+      setWordNetData(data);
+      generateNewQuestion(data);
+    } catch (err) {
+      setError('Failed to load vocabulary data. Please refresh the page.');
+      console.error('Error loading WordNet data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [generateNewQuestion]);
+
+  const loadUserStats = useCallback(() => {
+    const savedStats = localStorage.getItem(`lexileap_stats_${user.email}`);
+    if (savedStats) {
+      setQuizStats(JSON.parse(savedStats));
+    }
+  }, [user.email]);
+
+  useEffect(() => {
+    loadWordNetData();
+    loadUserStats();
+  }, [loadWordNetData, loadUserStats]);
+
+  const saveUserStats = (newStats: QuizStatsType) => {
+    setQuizStats(newStats);
+    localStorage.setItem(`lexileap_stats_${user.email}`, JSON.stringify(newStats));
   };
+
 
   const handleAnswer = (answerIndex: number) => {
     if (showResult) return;
