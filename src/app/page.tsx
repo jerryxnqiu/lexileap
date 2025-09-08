@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getFirebaseStorage } from '@/libs/firebase/client';
-import { ref, getDownloadURL } from 'firebase/storage';
 import { EmailAuth } from './components/EmailAuth';
 import { QuizInterface } from './components/QuizInterface';
 import { Header } from './components/Header';
