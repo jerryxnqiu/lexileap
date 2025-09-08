@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server'
 import { getStorage } from '@/libs/firebase/admin'
 import { GoogleAuth } from 'google-auth-library'
 import { getSecret } from '@/libs/firebase/secret'
+import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
     // Optional proxy to private Cloud Run service if configured
-    const base = (await getSecret('lexileap-data-url'))
+    const base = await getSecret('lexileap-data-url')
+
+    logger.info('Base:', { base })
+
     if (base) {
       const auth = new GoogleAuth()
       const client = await auth.getIdTokenClient(base)
@@ -29,6 +33,10 @@ export async function GET() {
     if (!exists) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
+
+    logger.info('File exists:', { exists })
+
+
     const nodeStream = file.createReadStream()
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
