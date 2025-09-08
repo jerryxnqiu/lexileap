@@ -51,8 +51,8 @@ async function initializeFirebase() {
   }
 }
 
-// Initialize Firebase on the client side
-if (typeof window !== 'undefined') {
+// Initialize Firebase on the client side only
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   initializeFirebase()
 }
 
