@@ -12,8 +12,13 @@ export async function GET() {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
     const [contents] = await file.download()
-    const body = new Uint8Array(contents)
-    return new Response(body, {
+    // Sanitize potential control characters that break JSON.parse on clients
+    const text = Buffer.from(contents).toString('utf8')
+    const sanitized = text.replace(/[\u0000-\u001F\u007F]/g, (ch) => {
+      // preserve common whitespace; strip others
+      return ch === '\n' || ch === '\r' || ch === '\t' ? ch : ''
+    })
+    return new Response(sanitized, {
       headers: { 'content-type': 'application/json; charset=utf-8' }
     })
   } catch (error) {

@@ -94,7 +94,23 @@ export default function Home() {
                     const keys = Object.keys(data);
                     const sampleKey = keys[0];
                     const approxSizeMb = Math.max(1, Math.round((resp.headers.get('content-length') ? Number(resp.headers.get('content-length')) : JSON.stringify(data).length) / 1024 / 1024));
-                    setWordnetSummary(`Loaded ${keys.length.toLocaleString()} words, ~${approxSizeMb} MB, parsed in ${durationMs} ms. Sample: ${sampleKey}`);
+                    const summary = `Loaded ${keys.length.toLocaleString()} words, ~${approxSizeMb} MB, parsed in ${durationMs} ms. Sample: ${sampleKey}`;
+                    setWordnetSummary(summary);
+                    // Log to server
+                    try {
+                      await fetch('/api/log', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({
+                          severity: 'INFO',
+                          event: 'wordnet_json_loaded',
+                          words: keys.length,
+                          approxSizeMb,
+                          parseMs: durationMs,
+                          sampleKey
+                        })
+                      });
+                    } catch {}
                   } catch (e) {
                     setWordnetSummary(`Failed to load: ${(e as Error).message}`);
                   }

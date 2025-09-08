@@ -1,4 +1,4 @@
-import { WordNetJson } from '../types/wordnet';
+import { WordNetJson } from '@/types/wordnet';
 
 export class WordNetService {
   private static cache: WordNetJson | null = null;
@@ -9,7 +9,7 @@ export class WordNetService {
     }
 
     try {
-      const response = await fetch('/data/wordnet.json');
+      const response = await fetch('/api/wordnet/file', { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Failed to load WordNet data');
       }
