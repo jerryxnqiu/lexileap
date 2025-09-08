@@ -12,7 +12,7 @@ steps:
     entrypoint: pack
     args:
       - build
-      - $_IMAGE
+      - australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-backend:$COMMIT_SHA
       - --builder
       - gcr.io/buildpacks/builder
       - --publish
@@ -25,7 +25,7 @@ steps:
       - deploy
       - $_SERVICE
       - --region=$_REGION
-      - --image=$_IMAGE
+      - --image=australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-backend:$COMMIT_SHA
       - --allow-unauthenticated
       - --memory=$_MEMORY
       - --cpu=$_CPU
@@ -36,12 +36,11 @@ steps:
       - --service-account=$_SERVICE_ACCOUNT
 
 images:
-  - $_IMAGE
+  - australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-backend:$COMMIT_SHA
 
 substitutions:
   _SERVICE: lexileap-backend
   _REGION: australia-southeast1
-  _IMAGE: australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-backend:$COMMIT_SHA
   _MEMORY: 2Gi
   _CPU: "2"
   _CONCURRENCY: "20"
