@@ -44,7 +44,7 @@ substitutions:
   _MEMORY: 2Gi
   _CPU: "2"
   _CONCURRENCY: "20"
-  _SERVICE_ACCOUNT: lexileap-run@business-dfb30.iam.gserviceaccount.com
+  _SERVICE_ACCOUNT: lexileap-cloud-run@business-dfb30.iam.gserviceaccount.com
 
 options:
   logging: CLOUD_LOGGING_ONLY
