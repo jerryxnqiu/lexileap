@@ -1,10 +1,28 @@
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/libs/firebase/admin'
+import { GoogleAuth } from 'google-auth-library'
+import { getSecret } from '@/libs/firebase/secret'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    // Optional proxy to private Cloud Run service if configured
+    const base = (await getSecret('lexileap-data-url'))
+    if (base) {
+      const auth = new GoogleAuth()
+      const client = await auth.getIdTokenClient(base)
+      const headers = await client.getRequestHeaders()
+      const upstream = await fetch(`${base}/api/wordnet/file`, { headers, cache: 'no-store' })
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          'content-type': upstream.headers.get('content-type') || 'application/json; charset=utf-8',
+          'cache-control': 'no-store'
+        }
+      })
+    }
+
     const storage = await getStorage()
     const file = storage.bucket().file('data/wordnet.json')
     const [exists] = await file.exists()
