@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getFirebaseStorage } from '@/libs/firebase/client';
+import { ref, getDownloadURL } from 'firebase/storage';
 import { EmailAuth } from './components/EmailAuth';
 import { QuizInterface } from './components/QuizInterface';
 import { Header } from './components/Header';
@@ -13,6 +15,7 @@ interface User {
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [wordnetSummary, setWordnetSummary] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
@@ -79,6 +82,37 @@ export default function Home() {
                 Generate WordNet Data
               </button>
             </div>
+
+            <div className="mt-3 flex justify-center">
+              <button
+                onClick={async () => {
+                  try {
+                    setWordnetSummary('Loading...');
+                    const storage = await getFirebaseStorage();
+                    const fileRef = ref(storage, 'data/wordnet.json');
+                    const url = await getDownloadURL(fileRef);
+                    const resp = await fetch(url, { cache: 'no-store' });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const start = performance.now();
+                    const data = await resp.json();
+                    const durationMs = Math.round(performance.now() - start);
+                    const keys = Object.keys(data);
+                    const sampleKey = keys[0];
+                    const approxSizeMb = Math.max(1, Math.round((resp.headers.get('content-length') ? Number(resp.headers.get('content-length')) : JSON.stringify(data).length) / 1024 / 1024));
+                    setWordnetSummary(`Loaded ${keys.length.toLocaleString()} words, ~${approxSizeMb} MB, parsed in ${durationMs} ms. Sample: ${sampleKey}`);
+                  } catch (e) {
+                    setWordnetSummary(`Failed to load: ${(e as Error).message}`);
+                  }
+                }}
+                className="rounded bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
+              >
+                Load WordNet JSON
+              </button>
+            </div>
+
+            {wordnetSummary && (
+              <p className="mt-3 text-center text-sm text-gray-600">{wordnetSummary}</p>
+            )}
             
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">
