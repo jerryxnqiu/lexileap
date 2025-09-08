@@ -12,7 +12,8 @@ export async function GET() {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
     const [contents] = await file.download()
-    return new NextResponse(contents, {
+    const body = new Uint8Array(contents)
+    return new Response(body, {
       headers: { 'content-type': 'application/json; charset=utf-8' }
     })
   } catch (error) {
