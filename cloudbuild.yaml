@@ -1,0 +1,51 @@
+steps:
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud artifacts repositories describe lexileap --location=$_REGION >/dev/null 2>&1 || \
+        gcloud artifacts repositories create lexileap --repository-format=docker --location=$_REGION
+
+  # Build container image using Cloud Native Buildpacks (publish directly to Artifact Registry)
+  - name: gcr.io/k8s-skaffold/pack
+    entrypoint: pack
+    args:
+      - build
+      - $_IMAGE
+      - --builder
+      - gcr.io/buildpacks/builder
+      - --publish
+
+  # Deploy to Cloud Run with sizing and runtime SA
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE
+      - --region=$_REGION
+      - --image=$_IMAGE
+      - --allow-unauthenticated
+      - --memory=$_MEMORY
+      - --cpu=$_CPU
+      - --concurrency=$_CONCURRENCY
+      - --timeout=900s
+      - --min-instances=0
+      - --max-instances=10
+      - --service-account=$_SERVICE_ACCOUNT
+
+images:
+  - $_IMAGE
+
+substitutions:
+  _SERVICE: lexileap-backend
+  _REGION: australia-southeast1
+  _IMAGE: australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-backend:$COMMIT_SHA
+  _MEMORY: 2Gi
+  _CPU: "2"
+  _CONCURRENCY: "20"
+  _SERVICE_ACCOUNT: lexileap-run@business-dfb30.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
