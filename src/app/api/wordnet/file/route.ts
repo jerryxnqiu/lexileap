@@ -11,14 +11,15 @@ export async function GET() {
     if (!exists) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
-    const [contents] = await file.download()
-    // Sanitize potential control characters that break JSON.parse on clients
-    const text = Buffer.from(contents).toString('utf8')
-    const sanitized = text.replace(/[\u0000-\u001F\u007F]/g, (ch) => {
-      // preserve common whitespace; strip others
-      return ch === '\n' || ch === '\r' || ch === '\t' ? ch : ''
+    const nodeStream = file.createReadStream()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        nodeStream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
+        nodeStream.on('end', () => controller.close())
+        nodeStream.on('error', (err: Error) => controller.error(err))
+      }
     })
-    return new Response(sanitized, {
+    return new Response(stream, {
       headers: { 'content-type': 'application/json; charset=utf-8' }
     })
   } catch (error) {
