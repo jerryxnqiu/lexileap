@@ -35,8 +35,6 @@ steps:
       - --max-instances=10
       - --service-account=$_SERVICE_ACCOUNT
 
-images:
-  - australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-data:$COMMIT_SHA
 
 substitutions:
   _SERVICE: lexileap-data
