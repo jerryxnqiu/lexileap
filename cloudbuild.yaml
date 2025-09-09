@@ -26,7 +26,7 @@ steps:
       - $_SERVICE
       - --region=$_REGION
       - --image=australia-southeast1-docker.pkg.dev/$PROJECT_ID/lexileap/lexileap-data:$COMMIT_SHA
-      - --allow-unauthenticated
+      - --no-allow-unauthenticated
       - --memory=$_MEMORY
       - --cpu=$_CPU
       - --concurrency=$_CONCURRENCY

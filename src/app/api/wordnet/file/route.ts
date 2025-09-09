@@ -4,6 +4,17 @@ import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type'
+    }
+  })
+}
+
 export async function GET() {
   try {
     // Direct GCS access (no more proxy needed)
@@ -34,7 +45,10 @@ export async function GET() {
     return new Response(stream, {
       headers: {
         'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-store'
+        'cache-control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type'
       }
     })
   } catch (error) {
