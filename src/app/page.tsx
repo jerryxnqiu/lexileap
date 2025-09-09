@@ -86,7 +86,32 @@ export default function Home() {
                 onClick={async () => {
                   try {
                     setWordnetSummary('Loading...');
-                    const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
+                    
+                    // Try direct call to second instance first
+                    const configResp = await fetch('/api/config');
+                    const config = await configResp.json();
+                    const secondInstanceUrl = config.lexileapDataUrl; // You'll need to add this to config
+                    
+                    let resp;
+                    if (secondInstanceUrl) {
+                      // Call second instance directly with auth
+                      const authResp = await fetch('/api/auth-token', { 
+                        method: 'POST',
+                        body: JSON.stringify({ targetUrl: secondInstanceUrl })
+                      });
+                      const { token } = await authResp.json();
+                      
+                      resp = await fetch(`${secondInstanceUrl}/api/wordnet/file`, { 
+                        cache: 'no-store',
+                        headers: {
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+                    } else {
+                      // Fallback to main instance
+                      resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
+                    }
+                    
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const start = performance.now();
                     const data = await resp.json();

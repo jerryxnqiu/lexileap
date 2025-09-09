@@ -15,7 +15,8 @@ export async function GET() {
       storageBucket,
       messagingSenderId,
       appId,
-      measurementId
+      measurementId,
+      lexileapDataUrl
     ] = await Promise.all([
       getSecret('firebase-api-key'),
       getSecret('firebase-auth-domain'),
@@ -23,7 +24,8 @@ export async function GET() {
       getSecret('firebase-storage-bucket'),
       getSecret('firebase-messaging-sender-id'),
       getSecret('firebase-app-id'),
-      getSecret('firebase-measurement-id')
+      getSecret('firebase-measurement-id'),
+      getSecret('lexileap-data-url')
     ]);
 
     const firebaseConfig = {
@@ -33,7 +35,8 @@ export async function GET() {
       storageBucket,
       messagingSenderId,
       appId,
-      measurementId
+      measurementId,
+      lexileapDataUrl
     };
 
     // Validate config

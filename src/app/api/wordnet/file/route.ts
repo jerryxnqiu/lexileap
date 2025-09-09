@@ -1,37 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/libs/firebase/admin'
-import { GoogleAuth } from 'google-auth-library'
-import { getSecret } from '@/libs/firebase/secret'
 import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Optional proxy to private Cloud Run service if configured
-    const base = await getSecret('lexileap-data-url')
-
-    logger.info('Base:', { base })
-
-    if (base) {
-      const auth = new GoogleAuth()
-      const client = await auth.getIdTokenClient(base)
-      const headers = await client.getRequestHeaders()
-      logger.info('Proxy request headers:', { 
-        hasAuth: !!headers.Authorization,
-        authPrefix: headers.Authorization?.substring(0, 20) + '...',
-        targetUrl: `${base}/api/wordnet/file`
-      })
-      const upstream = await fetch(`${base}/api/wordnet/file`, { headers, cache: 'no-store' })
-      return new Response(upstream.body, {
-        status: upstream.status,
-        headers: {
-          'content-type': upstream.headers.get('content-type') || 'application/json; charset=utf-8',
-          'cache-control': 'no-store'
-        }
-      })
-    }
-
+    // Direct GCS access (no more proxy needed)
     const storage = await getStorage()
     const file = storage.bucket().file('data/wordnet.json')
     const [exists] = await file.exists()
