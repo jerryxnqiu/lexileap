@@ -6,7 +6,6 @@ import { QuizStats } from '@/app/components/QuizStats';
 import { User } from '@/types/user';
 import { WordData } from '@/types/wordnet';
 import { QuizQuestion as QuizQuestionType, QuizStats as QuizStatsType } from '@/types/quiz';
-import { WordNetService } from '@/libs/wordnet';
 
 export function QuizInterface({ user }: { user: User }) {
   const [wordNetData, setWordNetData] = useState<Record<string, WordData> | null>(null);
@@ -75,17 +74,10 @@ export function QuizInterface({ user }: { user: User }) {
   }, []);
 
   const loadWordNetData = useCallback(async () => {
-    try {
-      const data = await WordNetService.getAllData();
-      setWordNetData(data);
-      generateNewQuestion(data);
-    } catch (err) {
-      setError('Failed to load vocabulary data. Please refresh the page.');
-      console.error('Error loading WordNet data:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [generateNewQuestion]);
+    // QuizInterface no longer loads WordNet data automatically
+    // Users can load data manually via the "Load WordNet JSON" button
+    setIsLoading(false);
+  }, []);
 
   const loadUserStats = useCallback(() => {
     const savedStats = localStorage.getItem(`lexileap_stats_${user.email}`);
