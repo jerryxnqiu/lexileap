@@ -27,7 +27,7 @@ export async function GET() {
     const top10Words = words.slice(0, 10)
     
     // Create response with just the top 10 words
-    const top10Data: Record<string, any> = {}
+    const top10Data: Record<string, unknown> = {}
     top10Words.forEach(word => {
       top10Data[word] = jsonData[word]
     })
