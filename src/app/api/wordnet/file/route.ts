@@ -17,6 +17,11 @@ export async function GET() {
       const auth = new GoogleAuth()
       const client = await auth.getIdTokenClient(base)
       const headers = await client.getRequestHeaders()
+      logger.info('Proxy request headers:', { 
+        hasAuth: !!headers.Authorization,
+        authPrefix: headers.Authorization?.substring(0, 20) + '...',
+        targetUrl: `${base}/api/wordnet/file`
+      })
       const upstream = await fetch(`${base}/api/wordnet/file`, { headers, cache: 'no-store' })
       return new Response(upstream.body, {
         status: upstream.status,
