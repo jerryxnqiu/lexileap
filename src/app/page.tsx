@@ -95,9 +95,8 @@ export default function Home() {
                     const data = await resp.json();
                     const durationMs = Math.round(performance.now() - start);
                     const keys = Object.keys(data);
-                    const sampleKey = keys[0];
-                    const approxSizeMb = Math.max(1, Math.round((resp.headers.get('content-length') ? Number(resp.headers.get('content-length')) : JSON.stringify(data).length) / 1024 / 1024));
-                    const summary = `Loaded ${keys.length.toLocaleString()} words, ~${approxSizeMb} MB, parsed in ${durationMs} ms. Sample: ${sampleKey}`;
+                    const wordsList = keys.join(', ');
+                    const summary = `Loaded ${keys.length} words in ${durationMs} ms. Words: ${wordsList}`;
                     setWordnetSummary(summary);
                     // Log to server
                     try {
@@ -106,11 +105,10 @@ export default function Home() {
                         headers: { 'content-type': 'application/json' },
                         body: JSON.stringify({
                           severity: 'INFO',
-                          event: 'wordnet_json_loaded',
+                          event: 'wordnet_top10_loaded',
                           words: keys.length,
-                          approxSizeMb,
                           parseMs: durationMs,
-                          sampleKey
+                          wordsList: keys
                         })
                       });
                     } catch {}

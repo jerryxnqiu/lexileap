@@ -17,23 +17,25 @@ export async function GET() {
 
     logger.info('Large file exists:', { exists })
 
-    const nodeStream = file.createReadStream()
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        nodeStream.on('data', (chunk: Buffer) => {
-          // Strip control chars except tabs/newlines/carriage returns
-          const filtered = Buffer.from(
-            Array.from(chunk).filter((b) => b === 9 || b === 10 || b === 13 || b >= 32)
-          )
-          controller.enqueue(new Uint8Array(filtered))
-        })
-        nodeStream.on('end', () => controller.close())
-        nodeStream.on('error', (err: Error) => controller.error(err))
-      }
+    // Read the entire file and process it
+    const [data] = await file.download()
+    const jsonString = data.toString('utf8')
+    const jsonData = JSON.parse(jsonString)
+    
+    // Get top 10 words (first 10 entries)
+    const words = Object.keys(jsonData)
+    const top10Words = words.slice(0, 10)
+    
+    // Create response with just the top 10 words
+    const top10Data: Record<string, any> = {}
+    top10Words.forEach(word => {
+      top10Data[word] = jsonData[word]
     })
-    return new Response(stream, {
+    
+    logger.info('Returning top 10 words:', { count: top10Words.length, words: top10Words })
+    
+    return NextResponse.json(top10Data, {
       headers: {
-        'content-type': 'application/json; charset=utf-8',
         'cache-control': 'no-store'
       }
     })
