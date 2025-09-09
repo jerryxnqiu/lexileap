@@ -95,27 +95,12 @@ export default function Home() {
                     let resp;
                     if (secondInstanceUrl) {
                       try {
-                        // Call second instance directly with auth
-                        const authResp = await fetch('/api/auth-token', { 
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ targetUrl: secondInstanceUrl })
-                        });
-                        
-                        if (!authResp.ok) {
-                          throw new Error(`Auth token failed: ${authResp.status}`);
-                        }
-                        
-                        const { token } = await authResp.json();
-                        
+                        // Call second instance directly (temporarily without auth for testing)
                         resp = await fetch(`${secondInstanceUrl}/api/wordnet/file`, { 
-                          cache: 'no-store',
-                          headers: {
-                            'Authorization': `Bearer ${token}`
-                          }
+                          cache: 'no-store'
                         });
-                      } catch (authError) {
-                        console.error('Auth failed, falling back to main instance:', authError);
+                      } catch (directError) {
+                        console.error('Direct call failed, falling back to main instance:', directError);
                         // Fallback to main instance
                         resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
                       }
