@@ -22,7 +22,7 @@ export async function GET() {
     const upstream = await fetch(`${base}/api/wordnet/largefile`, { 
       headers, 
       cache: 'no-store',
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(30000)
     })
     
     if (!upstream.ok) {
