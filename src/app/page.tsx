@@ -87,42 +87,8 @@ export default function Home() {
                   try {
                     setWordnetSummary('Loading...');
                     
-                    // Try direct call to second instance first
-                    const configResp = await fetch('/api/config');
-                    const config = await configResp.json();
-                    const secondInstanceUrl = config.lexileapDataUrl;
-                    
-                    let resp;
-                    if (secondInstanceUrl) {
-                      try {
-                        // Call second instance directly with auth
-                        const authResp = await fetch('/api/auth-token', { 
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ targetUrl: secondInstanceUrl })
-                        });
-                        
-                        if (!authResp.ok) {
-                          throw new Error(`Auth token failed: ${authResp.status}`);
-                        }
-                        
-                        const { token } = await authResp.json();
-                        
-                        resp = await fetch(`${secondInstanceUrl}/api/wordnet/file`, { 
-                          cache: 'no-store',
-                          headers: {
-                            'Authorization': `Bearer ${token}`
-                          }
-                        });
-                      } catch (authError) {
-                        console.error('Auth failed, falling back to main instance:', authError);
-                        // Fallback to main instance
-                        resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
-                      }
-                    } else {
-                      // Fallback to main instance
-                      resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
-                    }
+                    // Call local API (backend handles the proxy logic)
+                    const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
                     
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const start = performance.now();
