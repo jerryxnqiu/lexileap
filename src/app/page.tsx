@@ -4,11 +4,7 @@ import { useState, useEffect } from 'react';
 import { EmailAuth } from '@/app/components/EmailAuth';
 import { QuizInterface } from '@/app/components/QuizInterface';
 import { Header } from '@/app/components/Header';
-
-interface User {
-  email: string;
-  name?: string;
-}
+import { User } from '@/types/user';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -17,22 +13,47 @@ export default function Home() {
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
-    const savedUser = localStorage.getItem('lexileap_user');
+    const savedUser = localStorage.getItem('lexileapUser');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        const userData = JSON.parse(savedUser);
+        // Check if the session is still valid (less than 24 hours old)
+        if (userData.lastLoginAt) {
+          const lastLogin = new Date(userData.lastLoginAt);
+          const now = new Date();
+          const hoursSinceLogin = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSinceLogin < 24) {
+            setUser(userData);
+          } else {
+            // Session expired, clear localStorage
+            localStorage.removeItem('lexileapUser');
+          }
+        } else {
+          setUser(userData);
+        }
+      } catch (error) {
+        // Invalid data in localStorage, clear it
+        localStorage.removeItem('lexileapUser');
+        console.error('Invalid user data in localStorage:', error);
+      }
     }
     setIsLoading(false);
   }, []);
 
   const handleLogin = (email: string, name?: string) => {
-    const userData = { email, name };
+    const userData: User = { 
+      email, 
+      name,
+      lastLoginAt: new Date()
+    };
     setUser(userData);
-    localStorage.setItem('lexileap_user', JSON.stringify(userData));
+    localStorage.setItem('lexileapUser', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('lexileap_user');
+    localStorage.removeItem('lexileapUser');
   };
 
   if (isLoading) {
@@ -58,11 +79,27 @@ export default function Home() {
                 Master vocabulary with intelligent quizzes
               </p>
               <p className="text-sm text-gray-500">
-                Powered by WordNet&apos;s comprehensive dictionary
+                Secure email verification • Powered by WordNet&apos;s comprehensive dictionary
               </p>
             </div>
             
             <EmailAuth onLogin={handleLogin} />
+
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-start space-x-3">
+                <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-white text-xs">ℹ</span>
+                </div>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">How it works:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-blue-700">
+                    <li>Enter your email address</li>
+                    <li>Check your inbox for a 6-digit code</li>
+                    <li>Enter the code to start learning</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
 
             <div className="mt-6 flex justify-center">
               <button
@@ -152,7 +189,7 @@ export default function Home() {
                     <span className="text-white text-sm">✓</span>
                   </div>
                   <p className="text-gray-600">
-                    <strong>No passwords required</strong> - just your email to get started
+                    <strong>Secure email verification</strong> - no passwords, just a 6-digit code sent to your email
                   </p>
                 </div>
                 <div className="flex items-start space-x-3">
@@ -161,6 +198,14 @@ export default function Home() {
                   </div>
                   <p className="text-gray-600">
                     <strong>Adaptive learning</strong> that adjusts to your progress
+                  </p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm">🔒</span>
+                  </div>
+                  <p className="text-gray-600">
+                    <strong>Privacy-first</strong> - your data is secure and sessions expire automatically
                   </p>
                 </div>
               </div>

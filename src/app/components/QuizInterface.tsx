@@ -80,7 +80,7 @@ export function QuizInterface({ user }: { user: User }) {
   }, []);
 
   const loadUserStats = useCallback(() => {
-    const savedStats = localStorage.getItem(`lexileap_stats_${user.email}`);
+    const savedStats = localStorage.getItem(`lexileapStats_${user.email}`);
     if (savedStats) {
       setQuizStats(JSON.parse(savedStats));
     }
@@ -93,7 +93,7 @@ export function QuizInterface({ user }: { user: User }) {
 
   const saveUserStats = (newStats: QuizStatsType) => {
     setQuizStats(newStats);
-    localStorage.setItem(`lexileap_stats_${user.email}`, JSON.stringify(newStats));
+    localStorage.setItem(`lexileapStats_${user.email}`, JSON.stringify(newStats));
   };
 
 
