@@ -1,4 +1,5 @@
 import admin from 'firebase-admin'
+import { getFirestore } from 'firebase-admin/firestore'
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager'
 import { logger } from '@/libs/utils/logger'
 
@@ -42,8 +43,10 @@ const initPromise = initializeAdminApp()
 
 // Export initialized services
 export const getDb = async () => {
-  const adminApp = await initPromise
-  return adminApp.firestore()
+  await initPromise
+  // Use custom Firestore database ID (non-default)
+  const app = admin.app()
+  return getFirestore(app, 'lexileap')
 }
 
 export const getAuth = async () => {
