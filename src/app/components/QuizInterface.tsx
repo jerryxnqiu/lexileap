@@ -8,7 +8,7 @@ import { WordData } from '@/types/wordnet';
 import { QuizQuestion as QuizQuestionType, QuizStats as QuizStatsType } from '@/types/quiz';
 
 export function QuizInterface({ user }: { user: User }) {
-  const [wordNetData, setWordNetData] = useState<Record<string, WordData> | null>(null);
+  const [wordNetData] = useState<Record<string, WordData> | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<QuizQuestionType | null>(null);
   const [userAnswer, setUserAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -20,7 +20,7 @@ export function QuizInterface({ user }: { user: User }) {
     bestStreak: 0
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error] = useState('');
 
   const generateNewQuestion = useCallback((data: Record<string, WordData>) => {
     const words = Object.values(data);

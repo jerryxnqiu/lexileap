@@ -186,7 +186,7 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
               <span className="text-green-600 text-xl">📧</span>
             </div>
             <p className="text-gray-600">
-              We've sent a 6-digit verification code to:
+              We&#39;ve sent a 6-digit verification code to:
             </p>
             <p className="font-medium text-gray-900">{email}</p>
             <p className="text-xs text-gray-500 mt-1">
