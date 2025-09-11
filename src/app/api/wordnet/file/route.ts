@@ -5,7 +5,7 @@ import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // Get second instance URL
     const base = await getSecret('lexileap-data-url')
@@ -19,7 +19,9 @@ export async function GET() {
     const client = await auth.getIdTokenClient(base)
     const headers = await client.getRequestHeaders()
     
-    const upstream = await fetch(`${base}/api/wordnet/largefile`, { 
+    const url = new URL(request.url)
+    const full = url.searchParams.get('full') === '1'
+    const upstream = await fetch(`${base}/api/wordnet/largefile${full ? '?full=1' : ''}`, { 
       headers, 
       cache: 'no-store',
       signal: AbortSignal.timeout(30000)

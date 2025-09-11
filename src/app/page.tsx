@@ -92,7 +92,7 @@ export default function Home() {
               </p>
             </div>
             
-            <EmailAuth onLogin={(email, name) => handleLogin(email, name)} />
+            <EmailAuth onLogin={(email, name, isAdmin) => handleLogin(email, name, isAdmin)} />
 
             <div className="mt-4 p-4 bg-white/70 backdrop-blur rounded-xl border border-emerald-200 shadow-sm">
               <p className="text-center text-emerald-800 font-semibold mb-2">
@@ -154,7 +154,7 @@ export default function Home() {
                       if (!wordnetData && !isWordnetLoading) {
                         try {
                           setIsWordnetLoading(true);
-                          const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
+                          const resp = await fetch('/api/wordnet/file?full=1', { cache: 'no-store' });
                           const text = await resp.text();
                           const data = text ? (JSON.parse(text) as Record<string, WordData>) : ({} as Record<string, WordData>);
                           setWordnetData(data);
