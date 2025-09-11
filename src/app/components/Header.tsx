@@ -1,5 +1,7 @@
 'use client';
 
+import Link from "next/link";
+
 interface User {
   email: string;
   name?: string;
@@ -15,12 +17,12 @@ export function Header({ user, onLogout }: HeaderProps) {
     <header className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">L</span>
             </div>
             <h1 className="text-xl font-bold text-gray-900">LexiLeap</h1>
-          </div>
+          </Link>
           
           {user && (
             <div className="flex items-center space-x-4">

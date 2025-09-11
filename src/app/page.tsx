@@ -104,7 +104,7 @@ export default function Home() {
             
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-extrabold text-gray-800 mb-4">
-                My daughter loves LexiLeap 💖
+                My daughters loves LexiLeap 💖
               </h2>
               <div className="space-y-1.5 text-left">
                 <div className="flex items-start space-x-3">
