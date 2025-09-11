@@ -210,7 +210,7 @@ export default function Home() {
                   <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
                   {isWordnetLoading && <span className="text-sm text-gray-500">Loading...</span>}
                 </div>
-                <VocabularyList data={wordnetData} />
+                <VocabularyList />
               </div>
             )}
 

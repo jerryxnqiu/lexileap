@@ -1,41 +1,70 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WordData } from '@/types/wordnet';
 
-interface Props {
-  data: Record<string, WordData> | string[] | null;
-}
-
-export function VocabularyList({ data }: Props) {
+export function VocabularyList() {
   const [page, setPage] = useState(1);
   const pageSize = 50;
+  const [total, setTotal] = useState<number>(0);
+  const [items, setItems] = useState<Array<{ word: string; definition?: string; pos?: string; examples?: string[] }>>([]);
+  const [loading, setLoading] = useState(false);
 
-  const words = useMemo(() => {
-    if (!data) return [] as string[];
-    if (Array.isArray(data)) return data as string[];
-    return Object.keys(data as Record<string, WordData>);
-  }, [data]);
-  const totalPages = Math.max(1, Math.ceil(words.length / pageSize));
-  const start = (page - 1) * pageSize;
-  const slice = words.slice(start, start + pageSize);
+  useEffect(() => {
+    const run = async () => {
+      setLoading(true);
+      try {
+        const resp = await fetch(`/api/wordnet/file?page=${page}&pageSize=${pageSize}`, { cache: 'no-store' });
+        const text = await resp.text();
+        if (!resp.ok || !text) throw new Error('Failed to load');
+        const payload = JSON.parse(text) as { total: number; page: number; pageSize: number; items: Array<{ word: string; definition?: string; pos?: string; examples?: string[] }> };
+        setTotal(payload.total || 0);
+        setItems(Array.isArray(payload.items) ? payload.items : []);
+      } catch {
+        setTotal(0);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-800">Vocabulary List</h3>
-        <div className="text-sm text-gray-500">{words.length} words</div>
+        <div className="text-sm text-gray-500">{items.length} words on this page</div>
       </div>
-      {slice.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading...</p>
+      ) : items.length === 0 ? (
         <p className="text-sm text-gray-500">No data loaded.</p>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {slice.map((w) => (
-            <li key={w} className="p-2 border border-gray-200 rounded">
-              <span className="font-medium text-gray-900">{w}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-600">
+                <th className="py-2 px-3 border-b">Word</th>
+                <th className="py-2 px-3 border-b">Meaning</th>
+                <th className="py-2 px-3 border-b">POS</th>
+                <th className="py-2 px-3 border-b">Examples</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.word} className="odd:bg-white even:bg-gray-50">
+                  <td className="py-2 px-3 font-medium text-gray-900 align-top">{it.word}</td>
+                  <td className="py-2 px-3 text-gray-800 align-top">{it.definition || '-'}</td>
+                  <td className="py-2 px-3 text-gray-700 align-top">{it.pos || '-'}</td>
+                  <td className="py-2 px-3 text-gray-700 align-top">{it.examples && it.examples.length ? it.examples.join('; ') : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <div className="flex items-center justify-between mt-4">
         <button
@@ -45,7 +74,7 @@ export function VocabularyList({ data }: Props) {
         >
           Prev
         </button>
-        <div className="text-sm text-gray-600">Page {page} / {totalPages}</div>
+        <div className="text-sm text-gray-600">Page {page} / {totalPages} ({total} words)</div>
         <button
           className="px-3 py-1 rounded border text-sm disabled:opacity-50"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

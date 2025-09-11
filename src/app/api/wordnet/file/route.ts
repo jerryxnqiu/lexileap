@@ -21,7 +21,10 @@ export async function GET(request: Request) {
     
     const url = new URL(request.url)
     const full = url.searchParams.get('full') === '1'
-    const upstream = await fetch(`${base}/api/wordnet/largefile${full ? '?full=1' : ''}`, { 
+    const page = url.searchParams.get('page')
+    const pageSize = url.searchParams.get('pageSize')
+    const qs = full ? 'full=1' : `page=${encodeURIComponent(page || '1')}&pageSize=${encodeURIComponent(pageSize || '50')}`
+    const upstream = await fetch(`${base}/api/wordnet/largefile?${qs}`, { 
       headers, 
       cache: 'no-store',
       signal: AbortSignal.timeout(30000)

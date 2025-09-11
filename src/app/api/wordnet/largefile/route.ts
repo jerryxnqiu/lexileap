@@ -24,6 +24,8 @@ export async function GET(request: Request) {
     
     const url = new URL(request.url)
     const full = url.searchParams.get('full') === '1'
+    const pageParam = url.searchParams.get('page')
+    const pageSizeParam = url.searchParams.get('pageSize')
 
     if (full) {
       logger.info('Returning full dataset')
@@ -32,17 +34,30 @@ export async function GET(request: Request) {
       })
     }
 
-    // Default: top 10
-    const words = Object.keys(jsonData)
-    const top10Words = words.slice(0, 10)
-    const top10Data: Record<string, unknown> = {}
-    top10Words.forEach(word => { top10Data[word] = jsonData[word] })
-    logger.info('Returning top 10 words:', { count: top10Words.length, words: top10Words })
-    return NextResponse.json(top10Data, {
-      headers: {
-        'cache-control': 'no-store'
-      }
+    // Pagination (default 50 per page)
+    const allKeys = Object.keys(jsonData)
+    const total = allKeys.length
+    const page = Math.max(1, parseInt(pageParam || '1', 10))
+    const pageSize = Math.min(200, Math.max(1, parseInt(pageSizeParam || '50', 10)))
+    const start = (page - 1) * pageSize
+    const words = allKeys.slice(start, start + pageSize)
+    const items = words.map(word => {
+      const entry = jsonData[word]
+      let definition: string | undefined
+      let pos: string | undefined
+      let examples: string[] | undefined
+      try {
+        if (entry && entry.senses && Array.isArray(entry.senses) && entry.senses.length > 0) {
+          const s = entry.senses[0]
+          definition = s.definition
+          pos = entry.pos
+          if (s.examples && Array.isArray(s.examples)) examples = s.examples.slice(0, 2)
+        }
+      } catch {}
+      return { word, definition, pos, examples }
     })
+    logger.info('Returning paginated words:', { page, pageSize, count: words.length, total })
+    return NextResponse.json({ total, page, pageSize, items }, { headers: { 'cache-control': 'no-store' } })
   } catch (error) {
     const message = (error as Error).message || 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
