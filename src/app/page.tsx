@@ -65,148 +65,70 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100">
       <Header user={user} onLogout={handleLogout} />
       
       <main className="container mx-auto px-4 py-8">
         {!user ? (
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              <div className="mx-auto mb-3 text-5xl">
+                🐸✨
+              </div>
+              <h1 className="text-5xl font-extrabold text-gray-900 mb-3 tracking-tight">
                 LexiLeap
               </h1>
-              <p className="text-lg text-gray-600 mb-2">
-                Master vocabulary with intelligent quizzes
+              <p className="text-lg text-gray-700 mb-2">
+                Learn new words with fun quizzes!
               </p>
               <p className="text-sm text-gray-500">
-                Secure email verification • Powered by WordNet&apos;s comprehensive dictionary
+                Safe sign-in • Kid‑friendly • Quick to start
               </p>
             </div>
             
             <EmailAuth onLogin={handleLogin} />
 
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start space-x-3">
-                <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-white text-xs">ℹ</span>
-                </div>
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">How it works:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-700">
-                    <li>Enter your email address</li>
-                    <li>Check your inbox for a 6-digit code</li>
-                    <li>Enter the code to start learning</li>
-                  </ol>
-                </div>
-              </div>
+            <div className="mt-4 p-4 bg-white/70 backdrop-blur rounded-xl border border-emerald-200 shadow-sm">
+              <p className="text-center text-emerald-800 font-semibold mb-2">
+                How it works
+              </p>
+              <ol className="space-y-2 text-emerald-900 text-sm">
+                <li>1️⃣ Type your email</li>
+                <li>2️⃣ We send a 6‑digit code</li>
+                <li>3️⃣ Enter the code and start playing!</li>
+              </ol>
             </div>
 
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={async () => {
-                  const res = await fetch('/api/wordnet/generate', { method: 'POST' })
-                  if (!res.ok) {
-                    const data = await res.json().catch(() => ({}))
-                    alert(`Generation failed: ${data.error || res.statusText}`)
-                  } else {
-                    alert('WordNet generation triggered. Check Firebase Storage for output.')
-                  }
-                }}
-                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-              >
-                Generate WordNet Data
-              </button>
+            <div className="mt-6 text-center">
+              <a href="/admin" className="inline-block rounded-full bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 transition">
+                Admin Dashboard
+              </a>
             </div>
-
-            <div className="mt-3 flex justify-center">
-              <button
-                onClick={async () => {
-                  try {
-                    setWordnetSummary('Loading...');
-                    
-                    // Call local API (backend handles the proxy logic)
-                    const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
-                    
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    const start = performance.now();
-                    const data = await resp.json();
-                    const durationMs = Math.round(performance.now() - start);
-                    const keys = Object.keys(data);
-                    const wordsList = keys.join(', ');
-                    const summary = `Loaded ${keys.length} words in ${durationMs} ms. Words: ${wordsList}`;
-                    setWordnetSummary(summary);
-                    // Log to server
-                    try {
-                      await fetch('/api/log', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({
-                          severity: 'INFO',
-                          event: 'wordnet_top10_loaded',
-                          words: keys.length,
-                          parseMs: durationMs,
-                          wordsList: keys
-                        })
-                      });
-                    } catch {}
-                  } catch (e) {
-                    setWordnetSummary(`Failed to load: ${(e as Error).message}`);
-                  }
-                }}
-                className="rounded bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
-              >
-                Load WordNet JSON
-              </button>
-            </div>
-
-            {wordnetSummary && (
-              <p className="mt-3 text-center text-sm text-gray-600">{wordnetSummary}</p>
-            )}
             
             <div className="mt-12 text-center">
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-                Why LexiLeap?
+              <h2 className="text-2xl font-extrabold text-gray-800 mb-4">
+                Why kids love LexiLeap 💚
               </h2>
               <div className="space-y-3 text-left">
                 <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-sm">✓</span>
-                  </div>
-                  <p className="text-gray-600">
-                    <strong>145,000+ words</strong> from the authoritative WordNet database
-                  </p>
+                  <span className="text-2xl">📚</span>
+                  <p className="text-gray-700"><strong>Lots of words</strong> to explore and learn</p>
                 </div>
                 <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-sm">✓</span>
-                  </div>
-                  <p className="text-gray-600">
-                    <strong>Smart multiple choice</strong> questions with detailed explanations
-                  </p>
+                  <span className="text-2xl">🎯</span>
+                  <p className="text-gray-700"><strong>Fun quizzes</strong> with simple choices</p>
                 </div>
                 <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-sm">✓</span>
-                  </div>
-                  <p className="text-gray-600">
-                    <strong>Secure email verification</strong> - no passwords, just a 6-digit code sent to your email
-                  </p>
+                  <span className="text-2xl">🔒</span>
+                  <p className="text-gray-700"><strong>No passwords</strong> — just a quick code</p>
                 </div>
                 <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-sm">✓</span>
-                  </div>
-                  <p className="text-gray-600">
-                    <strong>Adaptive learning</strong> that adjusts to your progress
-                  </p>
+                  <span className="text-2xl">🚀</span>
+                  <p className="text-gray-700"><strong>Grows with you</strong> as you improve</p>
                 </div>
                 <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-sm">🔒</span>
-                  </div>
-                  <p className="text-gray-600">
-                    <strong>Privacy-first</strong> - your data is secure and sessions expire automatically
-                  </p>
+                  <span className="text-2xl">🛡️</span>
+                  <p className="text-gray-700"><strong>Privacy‑first</strong> — safe and gentle by design</p>
                 </div>
               </div>
             </div>

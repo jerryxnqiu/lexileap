@@ -32,7 +32,7 @@ steps:
       - --concurrency=$_CONCURRENCY
       - --timeout=900s
       - --min-instances=0
-      - --max-instances=10
+      - --max-instances=2
       - --service-account=$_SERVICE_ACCOUNT
 
 
