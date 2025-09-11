@@ -24,10 +24,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}>
+        <div className="flex-1 flex flex-col">
+          {children}
+        </div>
+        <footer className="border-t bg-white/80 backdrop-blur text-xs text-gray-600">
+          <div className="container mx-auto px-4 py-4 space-y-1">
+            <p>
+              WordNet® 3.0 Copyright © 2006 Princeton University. All rights reserved.
+            </p>
+            <p>
+              Provided "AS IS" without warranties. The name "Princeton University" may not be used in advertising or publicity pertaining to distribution of the software and/or database.
+            </p>
+            <p>
+              See the full license: <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer">License and Commercial Use of WordNet</a>.
+            </p>
+          </div>
+        </footer>
       </body>
     </html>
   );

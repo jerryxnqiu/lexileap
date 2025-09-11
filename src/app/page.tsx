@@ -5,11 +5,15 @@ import { EmailAuth } from '@/app/components/EmailAuth';
 import { QuizInterface } from '@/app/components/QuizInterface';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
+import { VocabularyList } from '@/app/components/VocabularyList';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [wordnetSummary, setWordnetSummary] = useState<string | null>(null);
+  const [view, setView] = useState<'menu' | 'quiz' | 'list' | 'scores'>('menu');
+  const [wordnetData, setWordnetData] = useState<Record<string, any> | null>(null);
+  const [isWordnetLoading, setIsWordnetLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
@@ -41,11 +45,12 @@ export default function Home() {
     setIsLoading(false);
   }, []);
 
-  const handleLogin = (email: string, name?: string) => {
+  const handleLogin = (email: string, name?: string, isAdmin?: boolean) => {
     const userData: User = { 
       email, 
       name,
-      lastLoginAt: new Date()
+      lastLoginAt: new Date(),
+      isAdmin
     };
     setUser(userData);
     localStorage.setItem('lexileapUser', JSON.stringify(userData));
@@ -86,7 +91,7 @@ export default function Home() {
               </p>
             </div>
             
-            <EmailAuth onLogin={handleLogin} />
+            <EmailAuth onLogin={(email, name) => handleLogin(email, name)} />
 
             <div className="mt-4 p-4 bg-white/70 backdrop-blur rounded-xl border border-emerald-200 shadow-sm">
               <p className="text-center text-emerald-800 font-semibold mb-2">
@@ -131,7 +136,85 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <QuizInterface user={user} />
+          <div className="max-w-4xl mx-auto">
+            {view === 'menu' && (
+              <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="w-full max-w-2xl grid gap-4 sm:grid-cols-2">
+                  <button
+                    onClick={() => setView('quiz')}
+                    className="rounded-2xl bg-blue-600 px-6 py-5 text-white hover:bg-blue-700 shadow-sm hover:shadow transition text-lg"
+                  >
+                    Start testing your vocabulary
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setView('list');
+                      if (!wordnetData && !isWordnetLoading) {
+                        try {
+                          setIsWordnetLoading(true);
+                          const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
+                          const text = await resp.text();
+                          const data = text ? JSON.parse(text) : {};
+                          setWordnetData(data);
+                        } catch {
+                          setWordnetData({});
+                        } finally {
+                          setIsWordnetLoading(false);
+                        }
+                      }
+                    }}
+                    className="rounded-2xl bg-emerald-600 px-6 py-5 text-white hover:bg-emerald-700 shadow-sm hover:shadow transition text-lg"
+                  >
+                    Review all vocabulary
+                  </button>
+                  <button
+                    onClick={() => setView('scores')}
+                    className="rounded-2xl bg-indigo-600 px-6 py-5 text-white hover:bg-indigo-700 shadow-sm hover:shadow transition text-lg sm:col-span-2"
+                  >
+                    Review your past scores
+                  </button>
+                  {user.isAdmin && (
+                    <a
+                      href="/admin"
+                      className="rounded-2xl bg-purple-600 px-6 py-5 text-white hover:bg-purple-700 shadow-sm hover:shadow transition text-lg sm:col-span-2 text-center"
+                    >
+                      Admin Dashboard
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {view === 'quiz' && (
+              <div>
+                <div className="mb-4">
+                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
+                </div>
+                <QuizInterface user={user} />
+              </div>
+            )}
+
+            {view === 'list' && (
+              <div>
+                <div className="mb-4 flex items-center justify-between">
+                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
+                  {isWordnetLoading && <span className="text-sm text-gray-500">Loading...</span>}
+                </div>
+                <VocabularyList data={wordnetData} />
+              </div>
+            )}
+
+            {view === 'scores' && (
+              <div>
+                <div className="mb-4">
+                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600">
+                  Coming soon: your past scores and progress.
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </main>
     </div>
