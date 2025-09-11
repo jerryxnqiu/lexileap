@@ -9,7 +9,6 @@ interface EmailAuthProps {
 export function EmailAuth({ onLogin }: EmailAuthProps) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [codeDigits, setCodeDigits] = useState<string[]>(Array(6).fill(''));
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +56,6 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
       
       setMessage('Verification code sent to your email!');
       setStep('code');
-      setCode('');
       setCodeDigits(Array(6).fill(''));
     } catch {
       setError('Something went wrong. Please try again.');
@@ -112,7 +110,6 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
 
   const handleBackToEmail = () => {
     setStep('email');
-    setCode('');
     setCodeDigits(Array(6).fill(''));
     setError('');
     setMessage('');
@@ -130,7 +127,6 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
     const next = [...codeDigits];
     next[index] = digit;
     setCodeDigits(next);
-    setCode(next.join(''));
     if (digit && index < 5) {
       inputsRef.current[index + 1]?.focus();
     }
@@ -142,7 +138,6 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
         const next = [...codeDigits];
         next[index] = '';
         setCodeDigits(next);
-        setCode(next.join(''));
       } else if (index > 0) {
         inputsRef.current[index - 1]?.focus();
       }
@@ -162,7 +157,6 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
     const next = Array(6).fill('');
     for (let i = 0; i < text.length && i < 6; i++) next[i] = text[i]!;
     setCodeDigits(next);
-    setCode(next.join(''));
     const focusIndex = Math.min(text.length, 5);
     inputsRef.current[focusIndex]?.focus();
   };

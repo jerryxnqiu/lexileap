@@ -6,13 +6,14 @@ import { QuizInterface } from '@/app/components/QuizInterface';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { VocabularyList } from '@/app/components/VocabularyList';
+import { WordData } from '@/types/wordnet';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [wordnetSummary, setWordnetSummary] = useState<string | null>(null);
+  // removed unused wordnetSummary
   const [view, setView] = useState<'menu' | 'quiz' | 'list' | 'scores'>('menu');
-  const [wordnetData, setWordnetData] = useState<Record<string, any> | null>(null);
+  const [wordnetData, setWordnetData] = useState<Record<string, WordData> | null>(null);
   const [isWordnetLoading, setIsWordnetLoading] = useState(false);
 
   useEffect(() => {
@@ -154,10 +155,10 @@ export default function Home() {
                           setIsWordnetLoading(true);
                           const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
                           const text = await resp.text();
-                          const data = text ? JSON.parse(text) : {};
+                          const data = text ? (JSON.parse(text) as Record<string, WordData>) : ({} as Record<string, WordData>);
                           setWordnetData(data);
                         } catch {
-                          setWordnetData({});
+                          setWordnetData({} as Record<string, WordData>);
                         } finally {
                           setIsWordnetLoading(false);
                         }

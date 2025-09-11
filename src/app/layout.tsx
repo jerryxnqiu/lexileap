@@ -34,7 +34,7 @@ export default function RootLayout({
               WordNet® 3.0 Copyright © 2006 Princeton University. All rights reserved.
             </p>
             <p>
-              Provided "AS IS" without warranties. The name "Princeton University" may not be used in advertising or publicity pertaining to distribution of the software and/or database.
+              Provided &quot;AS IS&quot; without warranties. The name &quot;Princeton University&quot; may not be used in advertising or publicity pertaining to distribution of the software and/or database.
             </p>
             <p>
               See the full license: <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer">License and Commercial Use of WordNet</a>.
