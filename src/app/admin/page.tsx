@@ -1,18 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 
 export default function AdminPage() {
-  const stored = typeof window !== 'undefined' ? localStorage.getItem('lexileapUser') : null;
-  const user: User | null = stored ? JSON.parse(stored) : null;
+  const [user, setUser] = useState<User | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [wordnetSummary, setWordnetSummary] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('lexileapUser');
+      setUser(stored ? JSON.parse(stored) : null);
+    } catch {
+      setUser(null);
+    } finally {
+      setMounted(true);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Header user={user} onLogout={() => { localStorage.removeItem('lexileapUser'); window.location.href = '/'; }} />
       <main className="container mx-auto px-4 py-8">
+        {!mounted ? null : (
+        <>
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Dashboard</h1>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -69,6 +82,8 @@ export default function AdminPage() {
 
         {wordnetSummary && (
           <p className="mt-4 text-sm text-gray-700">{wordnetSummary}</p>
+        )}
+        </>
         )}
       </main>
     </div>

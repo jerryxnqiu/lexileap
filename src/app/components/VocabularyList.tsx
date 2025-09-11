@@ -4,14 +4,18 @@ import { useMemo, useState } from 'react';
 import { WordData } from '@/types/wordnet';
 
 interface Props {
-  data: Record<string, WordData> | null;
+  data: Record<string, WordData> | string[] | null;
 }
 
 export function VocabularyList({ data }: Props) {
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
-  const words = useMemo(() => (data ? Object.keys(data) : []), [data]);
+  const words = useMemo(() => {
+    if (!data) return [] as string[];
+    if (Array.isArray(data)) return data as string[];
+    return Object.keys(data as Record<string, WordData>);
+  }, [data]);
   const totalPages = Math.max(1, Math.ceil(words.length / pageSize));
   const start = (page - 1) * pageSize;
   const slice = words.slice(start, start + pageSize);

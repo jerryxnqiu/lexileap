@@ -156,8 +156,13 @@ export default function Home() {
                           setIsWordnetLoading(true);
                           const resp = await fetch('/api/wordnet/file?full=1', { cache: 'no-store' });
                           const text = await resp.text();
-                          const data = text ? (JSON.parse(text) as Record<string, WordData>) : ({} as Record<string, WordData>);
-                          setWordnetData(data);
+                          if (!resp.ok || !text) {
+                            setWordnetData({} as Record<string, WordData>);
+                          } else {
+                            const parsed = JSON.parse(text) as Record<string, WordData>;
+                            // Allow either object map or pre-sliced array of keys
+                            setWordnetData(parsed);
+                          }
                         } catch {
                           setWordnetData({} as Record<string, WordData>);
                         } finally {
