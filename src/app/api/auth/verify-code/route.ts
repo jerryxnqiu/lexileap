@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getSecret } from '@/libs/firebase/secret'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
 
@@ -66,15 +67,28 @@ export async function POST(request: Request) {
     await userRef.update({ lastLoginAt: new Date() })
 
     logger.info('User authenticated successfully:', { email })
-    
-    return NextResponse.json({ 
+
+    // Set session cookie (httpOnly) with admin flag
+    const adminEmail = await getSecret('lexileap-admin-email')
+    const isAdmin = adminEmail ? adminEmail.toLowerCase() === email.toLowerCase() : false
+
+    const res = NextResponse.json({ 
       success: true,
       user: {
         email: userData.email,
         name: userData.name,
-        createdAt: userData.createdAt
+        createdAt: userData.createdAt,
+        isAdmin
       }
     })
+    res.cookies.set('session', JSON.stringify({ email, isAdmin }), {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24
+    })
+    return res
   } catch (error) {
     logger.error('Verify code error:', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Failed to verify code' }, { status: 500 })
