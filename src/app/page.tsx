@@ -97,13 +97,12 @@ export default function Home() {
                 <li>2️⃣ We send a 6‑digit code</li>
                 <li>3️⃣ Enter the code and start playing!</li>
               </ol>
+              <p className="mt-3 text-xs text-emerald-700 text-center">
+                🔒 Secure email sign‑in. Sessions expire after 24 hours.
+              </p>
             </div>
 
-            <div className="mt-6 text-center">
-              <a href="/admin" className="inline-block rounded-full bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 transition">
-                Admin Dashboard
-              </a>
-            </div>
+            {/* Admin link removed; access controlled elsewhere */}
             
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-extrabold text-gray-800 mb-4">
