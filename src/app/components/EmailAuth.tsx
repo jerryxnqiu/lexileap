@@ -264,7 +264,7 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
                   onChange={(e) => handleDigitChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
                   onPaste={i === 0 ? handlePaste : undefined}
-                  className="w-12 h-12 text-center text-xl border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-12 h-12 text-center text-xl text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   maxLength={1}
                   required
                 />

@@ -3,4 +3,5 @@ export interface User {
   name?: string;
   createdAt?: Date;
   lastLoginAt?: Date;
+  isAdmin?: boolean;
 }

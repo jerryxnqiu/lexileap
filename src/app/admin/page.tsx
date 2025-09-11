@@ -1,12 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { Header } from '@/app/components/Header';
+import { User } from '@/types/user';
 
 export default function AdminPage() {
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('lexileapUser') : null;
+  const user: User | null = stored ? JSON.parse(stored) : null;
   const [wordnetSummary, setWordnetSummary] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <Header user={user} onLogout={() => { localStorage.removeItem('lexileapUser'); window.location.href = '/'; }} />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Dashboard</h1>
 
