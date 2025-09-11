@@ -143,9 +143,10 @@ export default function Home() {
                 <div className="w-full max-w-2xl grid gap-4 sm:grid-cols-2">
                   <button
                     onClick={() => setView('quiz')}
-                    className="rounded-2xl bg-blue-600 px-6 py-5 text-white hover:bg-blue-700 shadow-sm hover:shadow transition text-lg"
+                    className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2"
                   >
-                    Start testing your vocabulary
+                    <span className="text-xl">🎯</span>
+                    <span className="text-lg font-semibold">Start testing your vocabulary</span>
                   </button>
                   <button
                     onClick={async () => {
@@ -164,22 +165,25 @@ export default function Home() {
                         }
                       }
                     }}
-                    className="rounded-2xl bg-emerald-600 px-6 py-5 text-white hover:bg-emerald-700 shadow-sm hover:shadow transition text-lg"
+                    className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2"
                   >
-                    Review all vocabulary
+                    <span className="text-xl">📚</span>
+                    <span className="text-lg font-semibold">Review all vocabulary</span>
                   </button>
                   <button
                     onClick={() => setView('scores')}
-                    className="rounded-2xl bg-indigo-600 px-6 py-5 text-white hover:bg-indigo-700 shadow-sm hover:shadow transition text-lg sm:col-span-2"
+                    className="rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2"
                   >
-                    Review your past scores
+                    <span className="text-xl">📈</span>
+                    <span className="text-lg font-semibold">Review your past scores</span>
                   </button>
                   {user.isAdmin && (
                     <a
                       href="/admin"
-                      className="rounded-2xl bg-purple-600 px-6 py-5 text-white hover:bg-purple-700 shadow-sm hover:shadow transition text-lg sm:col-span-2 text-center"
+                      className="rounded-3xl bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2 text-center"
                     >
-                      Admin Dashboard
+                      <span className="text-xl">🛠️</span>
+                      <span className="text-lg font-semibold">Admin Dashboard</span>
                     </a>
                   )}
                 </div>

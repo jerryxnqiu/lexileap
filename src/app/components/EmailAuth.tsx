@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 
 interface EmailAuthProps {
-  onLogin: (email: string, name?: string) => void;
+  onLogin: (email: string, name?: string, isAdmin?: boolean) => void;
 }
 
 export function EmailAuth({ onLogin }: EmailAuthProps) {
@@ -100,7 +100,7 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
       }
       
       // Login successful
-      onLogin(email.trim(), name.trim() || undefined);
+      onLogin(email.trim(), name.trim() || undefined, data?.user?.isAdmin);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
