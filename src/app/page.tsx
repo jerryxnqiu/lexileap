@@ -96,19 +96,17 @@ export default function Home() {
                 <li>1️⃣ Type your email</li>
                 <li>2️⃣ We send a 6‑digit code</li>
                 <li>3️⃣ Enter the code and start playing!</li>
+                <li>🔒 Secure email sign‑in. Sessions expire after 24 hours.</li>
               </ol>
-              <p className="mt-3 text-xs text-emerald-700 text-center">
-                🔒 Secure email sign‑in. Sessions expire after 24 hours.
-              </p>
             </div>
 
             {/* Admin link removed; access controlled elsewhere */}
             
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-extrabold text-gray-800 mb-4">
-                Why kids love LexiLeap 💚
+                My daughter loves LexiLeap 💖
               </h2>
-              <div className="space-y-3 text-left">
+              <div className="space-y-1.5 text-left">
                 <div className="flex items-start space-x-3">
                   <span className="text-2xl">📚</span>
                   <p className="text-gray-700"><strong>Lots of words</strong> to explore and learn</p>
