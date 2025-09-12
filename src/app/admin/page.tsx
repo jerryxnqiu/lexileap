@@ -7,7 +7,16 @@ import { User } from '@/types/user';
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [wordnetSummary, setWordnetSummary] = useState<string | null>(null);
+
+  const getAuthToken = async (targetUrl: string) => {
+    const res = await fetch('/api/auth-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl })
+    });
+    const data = await res.json();
+    return data.token;
+  };
 
   useEffect(() => {
     try {
@@ -28,61 +37,43 @@ export default function AdminPage() {
         <>
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Dashboard</h1>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <button
-            onClick={async () => {
-              const res = await fetch('/api/wordnet/generate', { method: 'POST' })
-              if (!res.ok) {
-                const data = await res.json().catch(() => ({}))
-                alert(`Generation failed: ${data.error || res.statusText}`)
-              } else {
-                alert('WordNet generation triggered. Check Firebase Storage for output.')
-              }
-            }}
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            Generate WordNet Data
-          </button>
-
+        <div className="max-w-md mx-auto">
           <button
             onClick={async () => {
               try {
-                setWordnetSummary('Loading...');
-                const resp = await fetch('/api/wordnet/file', { cache: 'no-store' });
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                const start = performance.now();
-                const data = await resp.json();
-                const durationMs = Math.round(performance.now() - start);
-                const keys = Object.keys(data);
-                const wordsList = keys.join(', ');
-                const summary = `Loaded ${keys.length} words in ${durationMs} ms. Words: ${wordsList}`;
-                setWordnetSummary(summary);
-                try {
-                  await fetch('/api/log', {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                      severity: 'INFO',
-                      event: 'wordnet_top10_loaded',
-                      words: keys.length,
-                      parseMs: durationMs,
-                      wordsList: keys
-                    })
-                  });
-                } catch {}
-              } catch (e) {
-                setWordnetSummary(`Failed to load: ${(e as Error).message}`);
+                // Get the data-processing instance URL from config
+                const configRes = await fetch('/api/config')
+                const config = await configRes.json()
+                const dataUrl = config.dataUrl
+                
+                if (!dataUrl) {
+                  alert('Data processing service not configured')
+                  return
+                }
+                
+                // Call the data-processing instance directly
+                const res = await fetch(`${dataUrl}/api/wordnet/generate`, { 
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${await getAuthToken(dataUrl)}`
+                  }
+                })
+                
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({}))
+                  alert(`Generation failed: ${data.error || res.statusText}`)
+                } else {
+                  alert('WordNet generation triggered. Check Firebase Storage for output.')
+                }
+              } catch (error) {
+                alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
               }
             }}
-            className="rounded bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
+            className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
           >
-            Load WordNet JSON
+            Prepare WordNet Data
           </button>
         </div>
-
-        {wordnetSummary && (
-          <p className="mt-4 text-sm text-gray-700">{wordnetSummary}</p>
-        )}
         </>
         )}
       </main>
