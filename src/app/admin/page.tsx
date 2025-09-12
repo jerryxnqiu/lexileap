@@ -44,7 +44,7 @@ export default function AdminPage() {
                 // Get the data-processing instance URL from config
                 const configRes = await fetch('/api/config')
                 const config = await configRes.json()
-                const dataUrl = config.dataUrl
+                const dataUrl = config.lexileapDataUrl
                 
                 if (!dataUrl) {
                   alert('Data processing service not configured')
