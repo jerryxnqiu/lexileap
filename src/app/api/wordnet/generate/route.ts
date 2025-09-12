@@ -19,7 +19,7 @@ export async function POST() {
     const client = await auth.getIdTokenClient(base)
     const headers = await client.getRequestHeaders()
     
-    const upstream = await fetch(`${base}/api/wordnet/generate`, { 
+    const upstream = await fetch(`${base}/api/wordnet/generate-data`, { 
       method: 'POST',
       headers, 
       cache: 'no-store',
