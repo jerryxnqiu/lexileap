@@ -8,15 +8,6 @@ export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  const getAuthToken = async (targetUrl: string) => {
-    const res = await fetch('/api/auth-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetUrl })
-    });
-    const data = await res.json();
-    return data.token;
-  };
 
   useEffect(() => {
     try {
@@ -41,22 +32,9 @@ export default function AdminPage() {
           <button
             onClick={async () => {
               try {
-                // Get the data-processing instance URL from config
-                const configRes = await fetch('/api/config')
-                const config = await configRes.json()
-                const dataUrl = config.lexileapDataUrl
-                
-                if (!dataUrl) {
-                  alert('Data processing service not configured')
-                  return
-                }
-                
-                // Call the data-processing instance directly
-                const res = await fetch(`${dataUrl}/api/wordnet/generate`, { 
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${await getAuthToken(dataUrl)}`
-                  }
+                // Call the local proxy endpoint which handles authentication to data-processing instance
+                const res = await fetch('/api/wordnet/generate', { 
+                  method: 'POST'
                 })
                 
                 if (!res.ok) {
