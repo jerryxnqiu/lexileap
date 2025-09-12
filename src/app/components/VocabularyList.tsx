@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { WordData } from '@/types/wordnet';
 
 export function VocabularyList() {
   const [page, setPage] = useState(1);

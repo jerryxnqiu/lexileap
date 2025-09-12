@@ -28,7 +28,7 @@ export async function POST() {
     
     if (!upstream.ok) {
       const errorText = await upstream.text()
-      logger.error('Data processing instance error:', { status: upstream.status, error: errorText } as any)
+      logger.error('Data processing instance error:', new Error(`Status ${upstream.status}: ${errorText}`))
       return NextResponse.json({ error: 'Data processing failed', details: errorText }, { status: upstream.status })
     }
 
