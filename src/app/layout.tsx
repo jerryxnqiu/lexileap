@@ -16,10 +16,7 @@ export const metadata: Metadata = {
   title: "LexiLeap - Learn New Words with Fun Quizzes",
   description: "A kid-friendly vocabulary learning app with fun quizzes and safe email sign-in",
   icons: {
-    icon: [
-      { url: '/LexiLeap-logo.png', sizes: '32x32', type: 'image/png' },
-      { url: '/LexiLeap-logo.png', sizes: '16x16', type: 'image/png' }
-    ],
+    icon: '/LexiLeap-logo.png',
     shortcut: '/LexiLeap-logo.png',
     apple: '/LexiLeap-logo.png',
   },
@@ -36,7 +33,7 @@ export default function RootLayout({
         <div className="flex-1 flex flex-col">
           {children}
         </div>
-        <footer className="sticky bottom-0 z-50 border-t bg-white/95 backdrop-blur-sm text-xs text-gray-600">
+        <footer className="sticky bottom-0 z-50 border-t backdrop-blur-sm text-xs text-gray-600" style={{ backgroundColor: '#EEEEEE' }}>
           <div className="container mx-auto px-4 py-4 space-y-1">
             <p>
               WordNet® 3.0 Copyright © 2006 Princeton University. All rights reserved.
