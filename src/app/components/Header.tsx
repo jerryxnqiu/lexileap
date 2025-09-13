@@ -18,9 +18,11 @@ export function Header({ user, onLogout }: HeaderProps) {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">L</span>
-            </div>
+            <img 
+              src="/LexiLeap-logo.png" 
+              alt="LexiLeap Logo" 
+              className="h-8 w-8"
+            />
             <h1 className="text-xl font-bold text-gray-900">LexiLeap</h1>
           </Link>
           

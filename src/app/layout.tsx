@@ -16,7 +16,10 @@ export const metadata: Metadata = {
   title: "LexiLeap - Learn New Words with Fun Quizzes",
   description: "A kid-friendly vocabulary learning app with fun quizzes and safe email sign-in",
   icons: {
-    icon: '/LexiLeap-logo.png',
+    icon: [
+      { url: '/LexiLeap-logo.png', sizes: '32x32', type: 'image/png' },
+      { url: '/LexiLeap-logo.png', sizes: '16x16', type: 'image/png' }
+    ],
     shortcut: '/LexiLeap-logo.png',
     apple: '/LexiLeap-logo.png',
   },
