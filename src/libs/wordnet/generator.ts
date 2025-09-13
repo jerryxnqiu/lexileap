@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import * as tar from 'tar'
-import { getStorage as getAdminStorage } from '@/libs/firebase/admin'
+import { getStorage as getAdminStorage, getDb } from '@/libs/firebase/admin'
+import { logger } from '../utils/logger'
 
 const DATA_DIR = path.join(process.cwd(), 'data')
 const WORDNET_DIR = path.join(DATA_DIR, 'wordnet', 'dict')
@@ -14,7 +15,7 @@ const WORDNET_INDEX_FILES = ['index.noun', 'index.verb', 'index.adj', 'index.adv
 const WORDNET_FILES = [...WORDNET_DATA_FILES, ...WORDNET_INDEX_FILES]
 
 async function downloadAndExtractWordNet(): Promise<void> {
-  console.log('📥 Downloading WordNet 3.0 from Princeton...')
+  logger.info('📥 Downloading WordNet 3.0 from Princeton...')
   
   const wordnetUrl = 'https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz'
   const tempDir = path.join(DATA_DIR, 'temp')
@@ -36,7 +37,7 @@ async function downloadAndExtractWordNet(): Promise<void> {
     const buffer = Buffer.from(arrayBuffer)
     fs.writeFileSync(tarPath, buffer)
     
-    console.log('📦 Extracting WordNet files...')
+    logger.info('📦 Extracting WordNet files...')
     
     // Extract the tar.gz file
     await tar.extract({
@@ -85,19 +86,19 @@ async function downloadAndExtractWordNet(): Promise<void> {
       
       if (fs.existsSync(sourcePath)) {
         fs.copyFileSync(sourcePath, targetPath)
-        console.log(`✅ Extracted ${filename}`)
+        logger.info(`✅ Extracted ${filename}`)
       } else {
-        console.warn(`⚠️  File not found in archive: ${filename}`)
+        logger.warn(`⚠️  File not found in archive: ${filename}`)
       }
     }
     
     // Clean up temp directory
     fs.rmSync(tempDir, { recursive: true, force: true })
     
-    console.log('✅ WordNet files extracted successfully')
+    logger.info('✅ WordNet files extracted successfully')
     
   } catch (error) {
-    console.error('Failed to download/extract WordNet:', error)
+    logger.error('Failed to download/extract WordNet:', error instanceof Error ? error : new Error(String(error)))
     // Clean up on error
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true })
@@ -107,7 +108,7 @@ async function downloadAndExtractWordNet(): Promise<void> {
 }
 
 async function ensureWordNetFiles() {
-  console.log('📥 Ensuring WordNet data files are available...')
+  logger.info('📥 Ensuring WordNet data files are available...')
   
   // Check if files already exist locally
   const allFilesExist = WORDNET_FILES.every(file => 
@@ -115,7 +116,7 @@ async function ensureWordNetFiles() {
   )
   
   if (allFilesExist) {
-    console.log('✅ WordNet files already exist locally')
+    logger.info('✅ WordNet files already exist locally')
     return
   }
   
@@ -180,7 +181,7 @@ function parseIndexFile(filename: string): Map<string, string[]> {
   const wordToSynsets = new Map<string, string[]>()
   
   if (!fs.existsSync(filepath)) {
-    console.log(`⚠️  Index file not found: ${filename}`)
+    logger.warn(`⚠️  Index file not found: ${filename}`)
     return wordToSynsets
   }
   
@@ -212,11 +213,11 @@ async function processDataFileWithIndex(
 ) {
   const filepath = path.join(WORDNET_DIR, filename)
   if (!fs.existsSync(filepath)) {
-    console.log(`⚠️  File not found: ${filename}`)
+    logger.warn(`⚠️  File not found: ${filename}`)
     return
   }
   
-  console.log(`📖 Processing ${filename} with index...`)
+  logger.info(`📖 Processing ${filename} with index...`)
   const content = fs.readFileSync(filepath, 'utf-8')
   const lines = content.split('\n')
   
@@ -352,21 +353,21 @@ async function processDataFileWithIndex(
       count++
       validEntries++
       if (count % 1000 === 0) {
-        console.log(`  Processed ${count} synsets, ${validEntries} valid...`)
+        logger.info(`  Processed ${count} synsets, ${validEntries} valid...`)
       }
     }
   }
   
-  console.log(`✅ Processed ${count} synsets, ${validEntries} valid from ${filename}`)
+  logger.info(`✅ Processed ${count} synsets, ${validEntries} valid from ${filename}`)
 }
 
 async function processDataFile(filename: string, wordNetData: WordNetJson) {
   const filepath = path.join(WORDNET_DIR, filename)
   if (!fs.existsSync(filepath)) {
-    console.log(`⚠️  File not found: ${filename}`)
+    logger.warn(`⚠️  File not found: ${filename}`)
     return
   }
-  console.log(`📖 Processing ${filename}...`)
+  logger.info(`📖 Processing ${filename}...`)
   const content = fs.readFileSync(filepath, 'utf-8')
   const lines = content.split('\n')
   let count = 0
@@ -460,10 +461,10 @@ async function processDataFile(filename: string, wordNetData: WordNetJson) {
     count++
     validEntries++
     if (count % 1000 === 0) {
-      console.log(`  Processed ${count} entries, ${validEntries} valid...`)
+      logger.info(`  Processed ${count} entries, ${validEntries} valid...`)
     }
   }
-  console.log(`✅ Processed ${count} entries, ${validEntries} valid from ${filename}`)
+  logger.info(`✅ Processed ${count} entries, ${validEntries} valid from ${filename}`)
 }
 
 function escapeCsvField(field: string): string {
@@ -474,7 +475,7 @@ function escapeCsvField(field: string): string {
 }
 
 function exportToCsv(wordNetData: WordNetJson): void {
-  console.log('📊 Exporting to CSV...')
+  logger.info('📊 Exporting to CSV...')
   const headers = ['wordId','word','pos','senses','antonyms','relatedWords']
   const csvLines = [headers.join(',')]
   Object.values(wordNetData).forEach(wordData => {
@@ -490,11 +491,11 @@ function exportToCsv(wordNetData: WordNetJson): void {
     csvLines.push(row.join(','))
   })
   fs.writeFileSync(CSV_FILE, csvLines.join('\n'))
-  console.log(`✅ CSV exported to: ${CSV_FILE}`)
+  logger.info(`✅ CSV exported to: ${CSV_FILE}`)
 }
 
 export async function generateWordNet(): Promise<{ jsonPath: string; csvPath: string }> {
-  console.log('🚀 Starting WordNet generation (API)...')
+  logger.info('🚀 Starting WordNet generation (API)...')
   
   // Ensure WordNet source files are available
   await ensureWordNetFiles()
@@ -510,31 +511,62 @@ export async function generateWordNet(): Promise<{ jsonPath: string; csvPath: st
   ]
   
   for (const { dataFile, indexFile } of posMappings) {
-    console.log(`📖 Processing (${dataFile} + ${indexFile})...`)
+    logger.info(`📖 Processing (${dataFile} + ${indexFile})...`)
     
     // Parse index file to get word-to-synset mappings
     const wordToSynsets = parseIndexFile(indexFile)
-    console.log(`  Found ${wordToSynsets.size} words in index`)
+    logger.info(`  Found ${wordToSynsets.size} words in index`)
     
     if (wordToSynsets.size > 0) {
       await processDataFileWithIndex(dataFile, wordNetData, wordToSynsets)
     } else {
-      console.warn(`  ⚠️ Index empty for ${indexFile}, scanning ${dataFile}`)
+      logger.warn(`  ⚠️ Index empty for ${indexFile}, scanning ${dataFile}`)
       await processDataFile(dataFile, wordNetData)
     }
   }
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })
   }
-  console.log('💾 Writing to wordnet.json...')
+  logger.info('💾 Writing to wordnet.json...')
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(wordNetData, null, 2))
   exportToCsv(wordNetData)
-  console.log('☁️  Uploading files to Firebase Storage...')
+  
+  // Save 1000 random samples to Firestore for visualization
+  logger.info('📊 Saving 1000 random samples to Firestore...')
+  const allWords = Object.keys(wordNetData)
+  const randomSamples = allWords
+    .sort(() => Math.random() - 0.5) // Shuffle array
+    .slice(0, 1000)
+    .map(wordId => ({
+      ...wordNetData[wordId]
+    }))
+  
+  const db = await getDb()
+  const batch = db.batch()
+  
+  // Clear existing samples
+  const existingSamples = await db.collection('wordnet_samples').get()
+  existingSamples.docs.forEach(doc => batch.delete(doc.ref))
+  
+  // Add new samples
+  randomSamples.forEach((sample, index) => {
+    const docRef = db.collection('wordnet_samples').doc(`sample_${index + 1}`)
+    batch.set(docRef, {
+      ...sample,
+      createdAt: new Date(),
+      totalWords: allWords.length
+    })
+  })
+  
+  await batch.commit()
+  logger.info(`✅ Saved ${randomSamples.length} random samples to Firestore`)
+  
+  logger.info('☁️  Uploading files to Firebase Storage...')
   const storage = await getAdminStorage()
   const bucket = storage.bucket()
   await bucket.upload(OUTPUT_FILE, { destination: 'wordnet/wordnet.json', contentType: 'application/json' })
   await bucket.upload(CSV_FILE, { destination: 'wordnet/wordnet.csv', contentType: 'text/csv' })
-  console.log('✅ Upload complete.')
+  logger.info('✅ Upload complete.')
   return { jsonPath: OUTPUT_FILE, csvPath: CSV_FILE }
 }
 
