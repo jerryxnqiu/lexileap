@@ -36,28 +36,36 @@ async function getQuestionsFromBank(count: number): Promise<QuizQuestion[]> {
 
 async function getRandomWords(count: number): Promise<WordData[]> {
   try {
-    // Get random samples from Firestore
-    const db = await getDb()
-    const samplesRef = db.collection('wordnet_samples')
-    const snapshot = await samplesRef.limit(count * 2).get() // Get more than needed for variety
+    // Get WordNet data from Cloud Storage
+    const { getStorage } = await import('@/libs/firebase/admin')
+    const storage = await getStorage()
+    const file = storage.bucket().file('data/wordnet.json')
     
+    // Download and parse the JSON file
+    const [fileContent] = await file.download()
+    const wordnetData = JSON.parse(fileContent.toString())
+    
+    // Get all word IDs and shuffle them
+    const allWordIds = Object.keys(wordnetData)
+    const shuffledWordIds = allWordIds.sort(() => Math.random() - 0.5)
+    
+    // Take the requested count and convert to WordData format
     const words: WordData[] = []
-    snapshot.forEach(doc => {
-      const data = doc.data()
-      if (data.senses && data.senses.length > 0) {
+    for (const wordId of shuffledWordIds.slice(0, count)) {
+      const wordData = wordnetData[wordId]
+      if (wordData && wordData.senses && wordData.senses.length > 0) {
         words.push({
-          wordId: data.wordId,
-          word: data.word,
-          pos: data.pos,
-          senses: data.senses
+          wordId: wordData.wordId,
+          word: wordData.word,
+          pos: wordData.pos,
+          senses: wordData.senses
         })
       }
-    })
+    }
     
-    // Shuffle and return requested count
-    return words.sort(() => Math.random() - 0.5).slice(0, count)
+    return words
   } catch (error) {
-    logger.error('Error getting random words:', error instanceof Error ? error : new Error(String(error)))
+    logger.error('Error getting random words from Cloud Storage:', error instanceof Error ? error : new Error(String(error)))
     return []
   }
 }

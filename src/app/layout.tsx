@@ -47,7 +47,7 @@ export default function RootLayout({
               pertaining to distribution of the software and/or database.
               <br />
               For full license details, see 
-              <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer">WordNet License</a>.
+              <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer"> WordNet License</a>.
             </p>
           </div>
         </footer>
