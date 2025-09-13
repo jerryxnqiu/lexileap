@@ -1,15 +1,64 @@
 export interface QuizQuestion {
+  id: string;
   word: string;
-  definition: string;
+  correctDefinition: string;
   options: string[];
-  correctAnswer: number;
-  explanation: string;
-  examples: string[];
+  correctIndex: number;
+  wordnetData: {
+    pos: string;
+    examples: string[];
+  };
 }
 
-export interface QuizStats {
+export interface QuizSession {
+  id: string;
+  userId: string;
+  questions: QuizQuestion[];
+  currentQuestion: number;
+  answers: (number | null)[];
+  startTime: Date;
+  endTime?: Date;
+  score?: number;
+  completed?: boolean;
+}
+
+export interface QuizResult {
+  sessionId: string;
+  score: number;
   totalQuestions: number;
-  correctAnswers: number;
-  currentStreak: number;
-  bestStreak: number;
+  percentage: number;
+  completedAt: Date;
+  answers: {
+    questionId: string;
+    word: string;
+    userAnswer: number;
+    correctAnswer: number;
+    isCorrect: boolean;
+  }[];
+}
+
+export interface UserQuizStats {
+  userId: string;
+  quizHistory: QuizResult[];
+  totalQuizzes: number;
+  totalScore: number;
+  averageScore: number;
+  firstQuizDate?: Date;
+  lastQuizDate?: Date;
+}
+
+export interface QuestionBankEntry {
+  id: string;
+  word: string;
+  correctDefinition: string;
+  options: string[];
+  correctIndex: number;
+  wordnetData: {
+    pos: string;
+    examples: string[];
+  };
+  timesTested: number;
+  timesCorrect: number;
+  createdAt: Date;
+  lastUsed: Date;
 }
