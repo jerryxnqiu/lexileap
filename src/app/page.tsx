@@ -78,15 +78,13 @@ export default function Home() {
         {!user ? (
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8">
-              <div className="mx-auto mb-3 text-5xl">
-                🐸✨
+              <div className="mx-auto mb-3">
+                <img 
+                  src="/LexiLeap-logo.png" 
+                  alt="LexiLeap Logo" 
+                  className="h-20 w-auto mx-auto"
+                />
               </div>
-              <h1 className="text-5xl font-extrabold text-gray-900 mb-3 tracking-tight">
-                LexiLeap
-              </h1>
-              <p className="text-lg text-gray-700 mb-2">
-                Learn new words with fun quizzes!
-              </p>
               <p className="text-sm text-gray-500">
                 Safe sign-in • Kid‑friendly • Quick to start
               </p>
