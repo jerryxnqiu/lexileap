@@ -16,8 +16,16 @@ export async function POST(request: Request) {
 
     const db = await getDb()
     
-    // Update quiz session
+    // Check if session already completed (prevent duplicate submissions)
     const sessionRef = db.collection('quiz_sessions').doc(sessionId)
+    const existingSession = await sessionRef.get()
+    
+    if (existingSession.exists && existingSession.data()?.completed) {
+      logger.warn('Quiz already submitted:', sessionId)
+      return NextResponse.json({ error: 'Quiz already submitted' }, { status: 409 })
+    }
+    
+    // Update quiz session
     await sessionRef.update({
       answers,
       score,

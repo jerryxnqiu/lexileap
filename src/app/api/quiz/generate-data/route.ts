@@ -109,7 +109,7 @@ async function createQuizQuestion(wordData: WordData): Promise<QuizQuestion> {
   const correctIndex = shuffledOptions.indexOf(correctDefinition)
   
   return {
-    id: `${wordData.wordId}_${Date.now()}`,
+    id: wordData.wordId, // Use plain word as key
     word: wordData.word,
     correctDefinition,
     options: shuffledOptions,
@@ -130,7 +130,7 @@ async function saveQuestionToBank(question: QuizQuestion): Promise<void> {
     const existingDoc = await questionRef.get()
     
     if (existingDoc.exists) {
-      // Update existing question
+      // Update existing question - only update usage stats, keep original question data
       await questionRef.update({
         timesTested: (existingDoc.data()?.timesTested || 0) + 1,
         lastUsed: new Date()

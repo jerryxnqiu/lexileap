@@ -11,6 +11,7 @@ export default function QuizPage() {
   const [session, setSession] = useState<QuizSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -82,8 +83,10 @@ export default function QuizPage() {
   };
 
   const finishQuiz = async () => {
-    if (!session || !user) return;
+    if (!session || !user || submitting) return;
 
+    setSubmitting(true);
+    
     const score = session.answers.reduce((correct: number, answer, index) => {
       return correct + (answer !== null && answer === session.questions[index].correctIndex ? 1 : 0);
     }, 0);
@@ -107,6 +110,9 @@ export default function QuizPage() {
       });
     } catch (error) {
       console.error('Error submitting quiz:', error);
+      alert('Failed to submit quiz. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -237,10 +243,10 @@ export default function QuizPage() {
                     </button>
                     <button
                       onClick={nextQuestion}
-                      disabled={session.answers[session.currentQuestion] === null}
+                      disabled={session.answers[session.currentQuestion] === null || submitting}
                       className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {session.currentQuestion === session.questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
+                      {submitting ? 'Submitting...' : (session.currentQuestion === session.questions.length - 1 ? 'Finish Quiz' : 'Next Question')}
                     </button>
                   </div>
                 </div>
