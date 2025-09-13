@@ -33,16 +33,21 @@ export default function RootLayout({
         <div className="flex-1 flex flex-col">
           {children}
         </div>
-        <footer className="sticky bottom-0 z-50 border-t backdrop-blur-sm text-xs text-gray-600" style={{ backgroundColor: '#EEEEEE' }}>
-          <div className="container mx-auto px-4 py-4 space-y-1">
+        <footer className="sticky bottom-0 z-50 border-t bg-white backdrop-blur-sm text-xs text-gray-600">
+          <div className="container mx-auto px-4 py-4">
             <p>
-              WordNet® 3.0 Copyright © 2006 Princeton University. All rights reserved.
-            </p>
-            <p>
-              Provided &quot;AS IS&quot; without warranties. The name &quot;Princeton University&quot; may not be used in advertising or publicity pertaining to distribution of the software and/or database.
-            </p>
-            <p>
-              See the full license: <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer">License and Commercial Use of WordNet</a>.
+              This website makes use of the WordNet® lexical database.
+              <br />
+              WordNet® 3.0 Copyright © 2006 by Princeton University. All rights reserved.
+              <br />
+              THIS SOFTWARE AND DATABASE IS PROVIDED &quot;AS IS&quot; AND PRINCETON UNIVERSITY MAKES NO 
+              REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.
+              <br />
+              The name &quot;Princeton University&quot; may not be used in advertising or publicity 
+              pertaining to distribution of the software and/or database.
+              <br />
+              For full license details, see 
+              <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer">WordNet License</a>.
             </p>
           </div>
         </footer>
