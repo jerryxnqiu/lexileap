@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
-import { QuizQuestion, QuizSession } from '@/types/quiz';
+import { QuizSession } from '@/types/quiz';
 
 export default function QuizPage() {
   const [user, setUser] = useState<User | null>(null);

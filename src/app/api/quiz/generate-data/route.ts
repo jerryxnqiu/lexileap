@@ -1,20 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
+import { QuizQuestion, WordData } from '@/types/quiz'
 
 export const dynamic = 'force-dynamic'
-
-interface QuizQuestion {
-  id: string;
-  word: string;
-  correctDefinition: string;
-  options: string[];
-  correctIndex: number;
-  wordnetData: {
-    pos: string;
-    examples: string[];
-  };
-}
 
 async function getQuestionsFromBank(count: number): Promise<QuizQuestion[]> {
   try {
@@ -45,14 +34,14 @@ async function getQuestionsFromBank(count: number): Promise<QuizQuestion[]> {
   }
 }
 
-async function getRandomWords(count: number): Promise<any[]> {
+async function getRandomWords(count: number): Promise<WordData[]> {
   try {
     // Get random samples from Firestore
     const db = await getDb()
     const samplesRef = db.collection('wordnet_samples')
     const snapshot = await samplesRef.limit(count * 2).get() // Get more than needed for variety
     
-    const words: any[] = []
+    const words: WordData[] = []
     snapshot.forEach(doc => {
       const data = doc.data()
       if (data.senses && data.senses.length > 0) {
@@ -73,7 +62,7 @@ async function getRandomWords(count: number): Promise<any[]> {
   }
 }
 
-async function generateMisleadingOptions(word: string, correctDefinition: string): Promise<string[]> {
+async function generateMisleadingOptions(word: string): Promise<string[]> {
   try {
     // For now, we'll generate simple misleading options
     // In production, you'd call DeepSeek API here
@@ -97,12 +86,12 @@ async function generateMisleadingOptions(word: string, correctDefinition: string
   }
 }
 
-async function createQuizQuestion(wordData: any): Promise<QuizQuestion> {
+async function createQuizQuestion(wordData: WordData): Promise<QuizQuestion> {
   const sense = wordData.senses[0] // Use first sense
   const correctDefinition = sense.definition || 'No definition available'
   
   // Generate misleading options
-  const misleadingOptions = await generateMisleadingOptions(wordData.word, correctDefinition)
+  const misleadingOptions = await generateMisleadingOptions(wordData.word)
   
   // Combine correct answer with misleading options
   const allOptions = [correctDefinition, ...misleadingOptions]

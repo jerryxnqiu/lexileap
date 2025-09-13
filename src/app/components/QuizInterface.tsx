@@ -1,9 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { User } from '@/types/user';
 
-export function QuizInterface({ user }: { user: User }) {
+export function QuizInterface() {
   const router = useRouter();
 
   const startQuiz = () => {

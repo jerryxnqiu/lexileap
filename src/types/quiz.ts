@@ -62,3 +62,13 @@ export interface QuestionBankEntry {
   createdAt: Date;
   lastUsed: Date;
 }
+
+export interface WordData {
+  wordId: string;
+  word: string;
+  pos: string;
+  senses: Array<{
+    definition: string;
+    examples: string[];
+  }>;
+}

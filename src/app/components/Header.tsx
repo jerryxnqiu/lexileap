@@ -1,6 +1,7 @@
 'use client';
 
 import Link from "next/link";
+import Image from "next/image";
 
 interface User {
   email: string;
@@ -18,9 +19,11 @@ export function Header({ user, onLogout }: HeaderProps) {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <img 
+            <Image 
               src="/LexiLeap-logo.png" 
               alt="LexiLeap Logo" 
+              width={32}
+              height={32}
               className="h-8 w-8"
             />
             <h1 className="text-xl font-bold text-gray-900">LexiLeap</h1>
