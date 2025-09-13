@@ -93,16 +93,19 @@ export function VocabularyList() {
         </div>
       )}
       <div className="flex items-center justify-between mt-4">
-        <button
-          className="px-3 py-1 rounded border text-sm disabled:opacity-50"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1}
-        >
-          Prev
-        </button>
+        {page > 1 ? (
+          <button
+            className="px-3 py-1 rounded border text-sm text-gray-800 hover:bg-gray-50"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Prev
+          </button>
+        ) : (
+          <div></div>
+        )}
         <div className="text-sm text-gray-600">Page {page} / {totalPages} ({total} words)</div>
         <button
-          className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+          className="px-3 py-1 rounded border text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page === totalPages}
         >
