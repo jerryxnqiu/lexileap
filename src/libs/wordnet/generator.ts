@@ -3,6 +3,7 @@ import path from 'path'
 import * as tar from 'tar'
 import { getStorage as getAdminStorage, getDb } from '@/libs/firebase/admin'
 import { logger } from '../utils/logger'
+import { WordSense, WordNetJson } from '@/types/wordnet'
 
 const DATA_DIR = path.join(process.cwd(), 'data')
 const WORDNET_DIR = path.join(DATA_DIR, 'wordnet', 'dict')
@@ -124,27 +125,6 @@ async function ensureWordNetFiles() {
   await downloadAndExtractWordNet()
 }
 
-interface WordSense {
-  word: string
-  definition: string
-  examples: string[]
-  synonyms: string[]
-  lexFileNum: string
-  synsetOffset: string
-}
-
-interface WordData {
-  wordId: string
-  word: string
-  pos: string
-  senses: WordSense[]
-  antonyms: string[]
-  relatedWords: string[]
-}
-
-interface WordNetJson {
-  [wordId: string]: WordData
-}
 
 function isValidWord(word: string): boolean {
   if (!word || word.length === 0) return false
