@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
@@ -14,14 +14,34 @@ export default function QuizPage() {
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const router = useRouter();
+  const sessionRef = useRef<QuizSession | null>(null);
+  const userRef = useRef<User | null>(null);
+  const submittingRef = useRef(false);
+
+  // Update refs when state changes
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
 
   const finishQuiz = useCallback(async () => {
-    if (!session || !user || submitting) return;
+    const currentSession = sessionRef.current;
+    const currentUser = userRef.current;
+    const isSubmitting = submittingRef.current;
+
+    if (!currentSession || !currentUser || isSubmitting) return;
 
     setSubmitting(true);
     
-    const score = session.answers.reduce((correct: number, answer, index) => {
-      return correct + (answer !== null && answer === session.questions[index].correctIndex ? 1 : 0);
+    const score = currentSession.answers.reduce((correct: number, answer, index) => {
+      return correct + (answer !== null && answer === currentSession.questions[index].correctIndex ? 1 : 0);
     }, 0);
 
     try {
@@ -29,15 +49,15 @@ export default function QuizPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: session.id,
-          answers: session.answers,
+          sessionId: currentSession.id,
+          answers: currentSession.answers,
           score,
           endTime: new Date()
         })
       });
 
       setSession({
-        ...session,
+        ...currentSession,
         endTime: new Date(),
         score: score || 0
       });
@@ -47,7 +67,7 @@ export default function QuizPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [session, user, submitting]);
+  }, []); // No dependencies - uses refs instead
 
   useEffect(() => {
     // Check if user is logged in
@@ -274,14 +294,19 @@ export default function QuizPage() {
                     ))}
                   </div>
 
+                  {/* Back to Home - separate row */}
+                  <div className="mb-4">
+                    <button
+                      onClick={() => router.push('/')}
+                      className="px-6 py-3 text-gray-600 hover:text-gray-800"
+                    >
+                      ← Back to Home
+                    </button>
+                  </div>
+
+                  {/* Quiz Navigation - Previous and Next */}
                   <div className="flex justify-between items-center">
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => router.push('/')}
-                        className="px-6 py-3 text-gray-600 hover:text-gray-800"
-                      >
-                        ← Back to Home
-                      </button>
+                    <div>
                       {session.currentQuestion > 0 && (
                         <button
                           onClick={previousQuestion}
