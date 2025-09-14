@@ -294,18 +294,8 @@ export default function QuizPage() {
                     ))}
                   </div>
 
-                  {/* Back to Home - separate row */}
-                  <div className="mb-4">
-                    <button
-                      onClick={() => router.push('/')}
-                      className="px-6 py-3 text-gray-600 hover:text-gray-800"
-                    >
-                      ← Back to Home
-                    </button>
-                  </div>
-
                   {/* Quiz Navigation - Previous and Next */}
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center mb-4">
                     <div>
                       {session.currentQuestion > 0 && (
                         <button
@@ -322,6 +312,16 @@ export default function QuizPage() {
                       className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? 'Submitting...' : (session.currentQuestion === session.questions.length - 1 ? 'Finish Quiz' : 'Next Question')}
+                    </button>
+                  </div>
+
+                  {/* Back to Home - separate row below, left aligned */}
+                  <div className="flex justify-start">
+                    <button
+                      onClick={() => router.push('/')}
+                      className="px-6 py-3 text-gray-600 hover:text-gray-800"
+                    >
+                      ← Back to Home
                     </button>
                   </div>
                 </div>
