@@ -129,8 +129,6 @@ async function getUserStats(db: Firestore, userId: string, days: number) {
   const overallAverageScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0
   const recentAverageScore = recentScores.length > 0 ? Math.round(recentScores.reduce((a: number, b: number) => a + b, 0) / recentScores.length) : 0
 
-  // Get user's overall stats
-  const userDoc = await db.collection('users').doc(userId).get()
 
   // Calculate additional stats
   const bestScore = Math.max(...scores, 0)
@@ -241,10 +239,10 @@ async function getDailyStats(db: Firestore, days: number) {
       averagePercentage: data.averagePercentage || 0,
       lastUpdated: data.lastUpdated?.toDate()
     }
-  }).filter((stat: any) => stat !== null)
+  }).filter((stat: { date: string; totalUsers: number; totalQuizzes: number; totalScore: number; totalQuestions: number; averageScore: number; averagePercentage: number; lastUpdated: Date } | null) => stat !== null)
 
   // Calculate totals across all days
-  const totals = dailyStats.reduce((acc: any, day: any) => ({
+  const totals = dailyStats.reduce((acc: { totalUsers: number; totalQuizzes: number; totalScore: number; totalQuestions: number }, day: { totalUsers: number; totalQuizzes: number; totalScore: number; totalQuestions: number }) => ({
     totalUsers: acc.totalUsers + day.totalUsers,
     totalQuizzes: acc.totalQuizzes + day.totalQuizzes,
     totalScore: acc.totalScore + day.totalScore,
@@ -285,16 +283,16 @@ async function getWordAnalytics(db: Firestore, days: number) {
       lastUsed: data.lastUsed?.toDate(),
       firstUsed: data.firstUsed?.toDate()
     }
-  }).filter((word: any) => word !== null)
+  }).filter((word: { word: string; timesTested: number; timesCorrect: number; accuracy: number; difficulty: string; lastUsed: Date; firstUsed: Date } | null) => word !== null)
 
   // Get difficulty distribution
-  const difficultyStats = wordStats.reduce((acc: any, word: any) => {
+  const difficultyStats = wordStats.reduce((acc: Record<string, number>, word: { word: string; timesTested: number; timesCorrect: number; accuracy: number; difficulty: string; lastUsed: Date; firstUsed: Date }) => {
     acc[word.difficulty] = (acc[word.difficulty] || 0) + 1
     return acc
   }, {})
 
   // Get most/least accurate words
-  const sortedByAccuracy = [...wordStats].sort((a: any, b: any) => b.accuracy - a.accuracy)
+  const sortedByAccuracy = [...wordStats].sort((a: { word: string; timesTested: number; timesCorrect: number; accuracy: number; difficulty: string; lastUsed: Date; firstUsed: Date }, b: { word: string; timesTested: number; timesCorrect: number; accuracy: number; difficulty: string; lastUsed: Date; firstUsed: Date }) => b.accuracy - a.accuracy)
   const mostAccurate = sortedByAccuracy.slice(0, 10)
   const leastAccurate = sortedByAccuracy.slice(-10).reverse()
 

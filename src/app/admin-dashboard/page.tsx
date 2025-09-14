@@ -4,68 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
-
-interface OverviewStats {
-  totalUsers: number;
-  totalQuizzes: number;
-  averageScore: number;
-  averagePercentage: number;
-  totalQuestions: number;
-  period: string;
-}
-
-interface DailyStats {
-  dailyStats: Array<{
-    date: string;
-    totalUsers: number;
-    totalQuizzes: number;
-    totalScore: number;
-    totalQuestions: number;
-    averageScore: number;
-    averagePercentage: number;
-    lastUpdated: Date;
-  }>;
-  totals: {
-    totalUsers: number;
-    totalQuizzes: number;
-    totalScore: number;
-    totalQuestions: number;
-    averageScore: number;
-    averagePercentage: number;
-  };
-  period: string;
-}
-
-interface WordAnalytics {
-  wordStats: Array<{
-    word: string;
-    timesTested: number;
-    timesCorrect: number;
-    accuracy: number;
-    difficulty: string;
-    lastUsed: Date;
-    firstUsed: Date;
-  }>;
-  difficultyStats: Record<string, number>;
-  mostAccurate: Array<any>;
-  leastAccurate: Array<any>;
-  totalWords: number;
-  period: string;
-}
-
-interface RecentActivity {
-  recentSessions: Array<{
-    sessionId: string;
-    userId: string;
-    score: number;
-    totalQuestions: number;
-    percentage: number;
-    startTime: Date;
-    endTime: Date;
-    duration: number | null;
-  }>;
-  period: string;
-}
+import { OverviewStats, DailyStats, WordAnalytics, RecentActivity } from '@/types/analytics';
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<User | null>(null);

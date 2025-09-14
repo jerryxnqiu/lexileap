@@ -68,7 +68,7 @@ export default function QuizPage() {
 
   // Timer effect
   useEffect(() => {
-    if (!session || session.endTime) return;
+    if (!session?.id || session?.endTime) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {

@@ -4,33 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
-
-interface UserStats {
-  userId: string;
-  totalQuizzes: number;
-  overallAverageScore: number;
-  recentAverageScore: number;
-  bestScore: number;
-  worstScore: number;
-  improvement: number;
-  firstQuizDate: Date | null;
-  lastQuizDate: Date | null;
-  period: string;
-  allAttempts: Array<{
-    id: string;
-    score: number;
-    totalQuestions: number;
-    percentage: number;
-    completedAt: Date;
-  }>;
-  recentAttempts: Array<{
-    id: string;
-    score: number;
-    totalQuestions: number;
-    percentage: number;
-    completedAt: Date;
-  }>;
-}
+import { UserStats } from '@/types/analytics';
 
 export default function UserDashboard() {
   const [user, setUser] = useState<User | null>(null);

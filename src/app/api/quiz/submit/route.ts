@@ -2,19 +2,21 @@ import { NextResponse } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
 import { QuizQuestion } from '@/types/quiz'
+import { Firestore, Transaction } from 'firebase-admin/firestore'
 
 export const dynamic = 'force-dynamic'
 
-async function updateDailyAnalytics(db: any, date: Date, score: number, totalQuestions: number, userId: string) {
+async function updateDailyAnalytics(db: Firestore, date: Date, score: number, totalQuestions: number, userId: string) {
   try {
     const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
     const dailyRef = db.collection('daily_analytics').doc(dateStr)
     
-    await db.runTransaction(async (transaction: any) => {
+    await db.runTransaction(async (transaction: Transaction) => {
       const dailyDoc = await transaction.get(dailyRef)
       
       if (dailyDoc.exists) {
         const data = dailyDoc.data()
+        if (!data) return
         const newTotalQuizzes = (data.totalQuizzes || 0) + 1
         const newTotalScore = (data.totalScore || 0) + score
         const newTotalQuestions = (data.totalQuestions || 0) + totalQuestions
@@ -54,7 +56,7 @@ async function updateDailyAnalytics(db: any, date: Date, score: number, totalQue
   }
 }
 
-async function updateWordAnalytics(db: any, questions: QuizQuestion[], answers: number[]) {
+async function updateWordAnalytics(db: Firestore, questions: QuizQuestion[], answers: number[]) {
   try {
     const batch = db.batch()
     
@@ -68,6 +70,7 @@ async function updateWordAnalytics(db: any, questions: QuizQuestion[], answers: 
       
       if (wordDoc.exists) {
         const data = wordDoc.data()
+        if (!data) continue
         const newTimesTested = (data.timesTested || 0) + 1
         const newTimesCorrect = (data.timesCorrect || 0) + (isCorrect ? 1 : 0)
         const newAccuracy = Math.round((newTimesCorrect / newTimesTested) * 100)
