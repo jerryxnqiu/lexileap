@@ -185,15 +185,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No questions available for quiz' }, { status: 500 })
     }
 
-    // Create quiz session
-    const sessionId = `quiz_${userId}_${Date.now()}`
+    // Create quiz session with date-based ID for better analytics
+    const now = new Date()
+    const dateStr = now.toISOString().split('T')[0] // YYYY-MM-DD
+    const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-') // HH-MM-SS
+    const hash = Math.random().toString(36).substring(2, 8) // 6-char hash
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9]/g, '_') // Sanitize for document ID
+    const sessionId = `${dateStr}_${timeStr}_${sanitizedUserId}_${hash}`
+    
     const session = {
       id: sessionId,
       userId,
       questions,
       currentQuestion: 0,
       answers: new Array(questions.length).fill(null),
-      startTime: new Date()
+      startTime: now,
+      date: dateStr // For easy date-based queries
     }
 
     // Save session to Firestore

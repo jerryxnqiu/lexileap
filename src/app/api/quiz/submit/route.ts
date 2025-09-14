@@ -25,12 +25,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Quiz already submitted' }, { status: 409 })
     }
     
-    // Update quiz session
+    // Update quiz session with analytics fields
+    const endTimeDate = new Date(endTime)
+    const startTime = existingSession.data()?.startTime?.toDate()
+    const duration = startTime ? Math.round((endTimeDate.getTime() - startTime.getTime()) / 1000) : null
+    
     await sessionRef.update({
       answers,
       score,
-      endTime: new Date(endTime),
-      completed: true
+      endTime: endTimeDate,
+      completed: true,
+      totalQuestions: answers.length,
+      percentage: Math.round((score / answers.length) * 100),
+      duration: duration // in seconds
     })
 
     // Get session data to update question statistics
@@ -83,29 +90,39 @@ export async function POST(request: Request) {
       }))
     }
 
+    // Store individual quiz attempt in user_quiz_attempts collection
+    const attemptRef = db.collection('user_quiz_attempts').doc(sessionId)
+    await attemptRef.set({
+      ...quizResult,
+      createdAt: new Date()
+    })
+
     if (userDoc.exists) {
-      // Update existing user
+      // Update existing user summary
       const userData = userDoc.data()
-      const quizHistory = userData?.quizHistory || []
-      quizHistory.push(quizResult)
+      const newTotalQuizzes = (userData?.totalQuizzes || 0) + 1
+      const newTotalScore = (userData?.totalScore || 0) + score
 
       await userRef.update({
-        quizHistory: quizHistory.slice(-10), // Keep last 10 quizzes
-        totalQuizzes: (userData?.totalQuizzes || 0) + 1,
-        totalScore: (userData?.totalScore || 0) + score,
-        averageScore: Math.round(((userData?.totalScore || 0) + score) / ((userData?.totalQuizzes || 0) + 1)),
-        lastQuizDate: new Date(endTime)
+        totalQuizzes: newTotalQuizzes,
+        totalScore: newTotalScore,
+        averageScore: Math.round(newTotalScore / newTotalQuizzes),
+        bestScore: Math.max(userData?.bestScore || 0, score),
+        lastQuizDate: new Date(endTime),
+        // Keep a small recent history for quick access (last 5)
+        recentQuizzes: [quizResult, ...(userData?.recentQuizzes || []).slice(0, 4)]
       })
     } else {
       // Create new user record
       await userRef.set({
         userId: sessionData.userId,
-        quizHistory: [quizResult],
         totalQuizzes: 1,
         totalScore: score,
         averageScore: score,
+        bestScore: score,
         firstQuizDate: new Date(endTime),
-        lastQuizDate: new Date(endTime)
+        lastQuizDate: new Date(endTime),
+        recentQuizzes: [quizResult]
       })
     }
 
