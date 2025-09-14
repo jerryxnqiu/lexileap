@@ -12,6 +12,7 @@ export default function QuizPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const router = useRouter();
 
   useEffect(() => {
@@ -31,10 +32,29 @@ export default function QuizPage() {
     setLoading(false);
   }, [router]);
 
+  // Timer effect
+  useEffect(() => {
+    if (!session || session.endTime) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          // Time's up - auto submit
+          finishQuiz();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [session]);
+
   const startQuiz = async () => {
     if (!user) return;
     
     setGenerating(true);
+    setTimeLeft(600); // Reset timer
     try {
       const response = await fetch('/api/quiz/generate', {
         method: 'POST',
@@ -82,6 +102,15 @@ export default function QuizPage() {
     }
   };
 
+  const previousQuestion = () => {
+    if (!session || session.currentQuestion === 0) return;
+
+    setSession({
+      ...session,
+      currentQuestion: session.currentQuestion - 1
+    });
+  };
+
   const finishQuiz = async () => {
     if (!session || !user || submitting) return;
 
@@ -119,6 +148,12 @@ export default function QuizPage() {
   const handleLogout = () => {
     localStorage.removeItem('lexileapUser');
     router.push('/');
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -191,8 +226,13 @@ export default function QuizPage() {
                 <h2 className="text-2xl font-bold text-gray-900">
                   Question {session.currentQuestion + 1} of {session.questions.length}
                 </h2>
-                <div className="text-sm text-gray-600">
-                  Progress: {Math.round(((session.currentQuestion + 1) / session.questions.length) * 100)}%
+                <div className="flex items-center space-x-4">
+                  <div className={`text-lg font-bold ${timeLeft < 60 ? 'text-red-600' : timeLeft < 300 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    ⏰ {formatTime(timeLeft)}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Progress: {Math.round(((session.currentQuestion + 1) / session.questions.length) * 100)}%
+                  </div>
                 </div>
               </div>
 
@@ -234,13 +274,23 @@ export default function QuizPage() {
                     ))}
                   </div>
 
-                  <div className="flex justify-between">
-                    <button
-                      onClick={() => router.push('/')}
-                      className="px-6 py-3 text-gray-600 hover:text-gray-800"
-                    >
-                      ← Back to Home
-                    </button>
+                  <div className="flex justify-between items-center">
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => router.push('/')}
+                        className="px-6 py-3 text-gray-600 hover:text-gray-800"
+                      >
+                        ← Back to Home
+                      </button>
+                      {session.currentQuestion > 0 && (
+                        <button
+                          onClick={previousQuestion}
+                          className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                        >
+                          ← Previous
+                        </button>
+                      )}
+                    </div>
                     <button
                       onClick={nextQuestion}
                       disabled={session.answers[session.currentQuestion] === null || submitting}
