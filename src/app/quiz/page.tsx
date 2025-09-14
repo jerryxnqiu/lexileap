@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
@@ -14,6 +14,40 @@ export default function QuizPage() {
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const router = useRouter();
+
+  const finishQuiz = useCallback(async () => {
+    if (!session || !user || submitting) return;
+
+    setSubmitting(true);
+    
+    const score = session.answers.reduce((correct: number, answer, index) => {
+      return correct + (answer !== null && answer === session.questions[index].correctIndex ? 1 : 0);
+    }, 0);
+
+    try {
+      await fetch('/api/quiz/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: session.id,
+          answers: session.answers,
+          score,
+          endTime: new Date()
+        })
+      });
+
+      setSession({
+        ...session,
+        endTime: new Date(),
+        score: score || 0
+      });
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+      alert('Failed to submit quiz. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [session, user, submitting]);
 
   useEffect(() => {
     // Check if user is logged in
@@ -48,7 +82,7 @@ export default function QuizPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [session]);
+  }, [session, finishQuiz]);
 
   const startQuiz = async () => {
     if (!user) return;
@@ -109,40 +143,6 @@ export default function QuizPage() {
       ...session,
       currentQuestion: session.currentQuestion - 1
     });
-  };
-
-  const finishQuiz = async () => {
-    if (!session || !user || submitting) return;
-
-    setSubmitting(true);
-    
-    const score = session.answers.reduce((correct: number, answer, index) => {
-      return correct + (answer !== null && answer === session.questions[index].correctIndex ? 1 : 0);
-    }, 0);
-
-    try {
-      await fetch('/api/quiz/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session.id,
-          answers: session.answers,
-          score,
-          endTime: new Date()
-        })
-      });
-
-      setSession({
-        ...session,
-        endTime: new Date(),
-        score: score || 0
-      });
-    } catch (error) {
-      console.error('Error submitting quiz:', error);
-      alert('Failed to submit quiz. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const handleLogout = () => {

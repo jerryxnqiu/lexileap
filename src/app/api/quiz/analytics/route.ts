@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
-import { DocumentSnapshot } from 'firebase-admin/firestore'
+import { DocumentSnapshot, Firestore } from 'firebase-admin/firestore'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const days = parseInt(searchParams.get('days') || '30')
 
     const db = await getDb()
-    const results: any = {}
+    const results: Record<string, unknown> = {}
 
     switch (type) {
       case 'overview':
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function getOverviewStats(db: any, days: number) {
+async function getOverviewStats(db: Firestore, days: number) {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
@@ -86,7 +86,7 @@ async function getOverviewStats(db: any, days: number) {
   }
 }
 
-async function getUserStats(db: any, userId: string, days: number) {
+async function getUserStats(db: Firestore, userId: string, days: number) {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
@@ -112,18 +112,17 @@ async function getUserStats(db: any, userId: string, days: number) {
 
   // Filter recent attempts if days specified
   const recentAttempts = days > 0 ? 
-    allAttempts.filter((attempt: any) => attempt.completedAt >= cutoffDate) : 
+    allAttempts.filter((attempt: { completedAt: Date }) => attempt.completedAt >= cutoffDate) : 
     allAttempts
 
-  const scores = allAttempts.map((a: { score: number }) => a.score).filter((s: number | undefined) => s !== undefined)
-  const recentScores = recentAttempts.map((a: { score: number }) => a.score).filter((s: number | undefined) => s !== undefined)
+  const scores = allAttempts.map((a: Record<string, unknown>) => a.score as number | undefined).filter((s: number | undefined) => s !== undefined)
+  const recentScores = recentAttempts.map((a: Record<string, unknown>) => a.score as number | undefined).filter((s: number | undefined) => s !== undefined)
   
   const overallAverageScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0
   const recentAverageScore = recentScores.length > 0 ? Math.round(recentScores.reduce((a: number, b: number) => a + b, 0) / recentScores.length) : 0
 
   // Get user's overall stats
   const userDoc = await db.collection('users').doc(userId).get()
-  const userData = userDoc.exists ? userDoc.data() : null
 
   // Calculate additional stats
   const bestScore = Math.max(...scores, 0)
@@ -148,7 +147,7 @@ async function getUserStats(db: any, userId: string, days: number) {
   }
 }
 
-async function getWordStats(db: any, days: number) {
+async function getWordStats(db: Firestore, days: number) {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
@@ -177,7 +176,7 @@ async function getWordStats(db: any, days: number) {
   }
 }
 
-async function getRecentActivity(db: any, days: number) {
+async function getRecentActivity(db: Firestore, days: number) {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
