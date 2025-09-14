@@ -31,15 +31,14 @@ quiz_sessions/
 **Document ID**: `userId`
 ```
 users/
-  ├── user@email.com/
-  │   ├── userId: "user@email.com"
-  │   ├── totalQuizzes: 25
-  │   ├── totalScore: 1050
-  │   ├── averageScore: 42
-  │   ├── bestScore: 48
-  │   ├── firstQuizDate: Timestamp
-  │   ├── lastQuizDate: Timestamp
-  │   └── recentQuizzes: [last 5 sessions for quick access]
+    ├── user@email.com/
+    │   ├── userId: "user@email.com"
+    │   ├── totalQuizzes: 25
+    │   ├── totalScore: 1050
+    │   ├── averageScore: 42
+    │   ├── bestScore: 48
+    │   ├── firstQuizDate: Timestamp
+    │   └── lastQuizDate: Timestamp
 ```
 
 ### 2b. User Quiz Attempts Collection (ALL attempts)

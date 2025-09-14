@@ -98,12 +98,9 @@ async function getUserStats(db: Firestore, userId: string, days: number) {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
-  // Get ALL user's quiz attempts (not limited by days for complete history)
-  // Query by session ID pattern since userId is embedded in session ID
-  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9]/g, '_')
+  // Get ALL user's quiz attempts by querying the userId field
   const attemptsSnapshot = await db.collection('user_quiz_attempts')
-    .where('__name__', '>=', `_${sanitizedUserId}_`)
-    .where('__name__', '<', `_${sanitizedUserId}_\uf8ff`)
+    .where('userId', '==', userId)
     .orderBy('completedAt', 'desc')
     .get()
 
