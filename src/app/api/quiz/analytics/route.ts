@@ -31,11 +31,19 @@ export async function GET(request: Request) {
       case 'recent':
         results.recent = await getRecentActivity(db, days)
         break
+      case 'daily':
+        results.daily = await getDailyStats(db, days)
+        break
+      case 'word-analytics':
+        results.wordAnalytics = await getWordAnalytics(db, days)
+        break
       default:
         // Return all analytics
         results.overview = await getOverviewStats(db, days)
         results.words = await getWordStats(db, days)
         results.recent = await getRecentActivity(db, days)
+        results.daily = await getDailyStats(db, days)
+        results.wordAnalytics = await getWordAnalytics(db, days)
     }
 
     return NextResponse.json(results)
@@ -206,6 +214,96 @@ async function getRecentActivity(db: Firestore, days: number) {
 
   return {
     recentSessions,
+    period: `${days} days`
+  }
+}
+
+async function getDailyStats(db: Firestore, days: number) {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - days)
+  const cutoffDateStr = cutoffDate.toISOString().split('T')[0]
+
+  const dailySnapshot = await db.collection('daily_analytics')
+    .where('date', '>=', cutoffDateStr)
+    .orderBy('date', 'desc')
+    .get()
+
+  const dailyStats = dailySnapshot.docs.map((doc: DocumentSnapshot) => {
+    const data = doc.data()
+    if (!data) return null
+    return {
+      date: data.date,
+      totalUsers: data.totalUsers || 0,
+      totalQuizzes: data.totalQuizzes || 0,
+      totalScore: data.totalScore || 0,
+      totalQuestions: data.totalQuestions || 0,
+      averageScore: data.averageScore || 0,
+      averagePercentage: data.averagePercentage || 0,
+      lastUpdated: data.lastUpdated?.toDate()
+    }
+  }).filter((stat: any) => stat !== null)
+
+  // Calculate totals across all days
+  const totals = dailyStats.reduce((acc: any, day: any) => ({
+    totalUsers: acc.totalUsers + day.totalUsers,
+    totalQuizzes: acc.totalQuizzes + day.totalQuizzes,
+    totalScore: acc.totalScore + day.totalScore,
+    totalQuestions: acc.totalQuestions + day.totalQuestions
+  }), { totalUsers: 0, totalQuizzes: 0, totalScore: 0, totalQuestions: 0 })
+
+  return {
+    dailyStats,
+    totals: {
+      ...totals,
+      averageScore: totals.totalQuizzes > 0 ? Math.round(totals.totalScore / totals.totalQuizzes) : 0,
+      averagePercentage: totals.totalQuestions > 0 ? Math.round((totals.totalScore / totals.totalQuestions) * 100) : 0
+    },
+    period: `${days} days`
+  }
+}
+
+async function getWordAnalytics(db: Firestore, days: number) {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - days)
+
+  // Get words that were used recently
+  const wordSnapshot = await db.collection('word_analytics')
+    .where('lastUsed', '>=', cutoffDate)
+    .orderBy('lastUsed', 'desc')
+    .limit(100)
+    .get()
+
+  const wordStats = wordSnapshot.docs.map((doc: DocumentSnapshot) => {
+    const data = doc.data()
+    if (!data) return null
+    return {
+      word: data.word,
+      timesTested: data.timesTested || 0,
+      timesCorrect: data.timesCorrect || 0,
+      accuracy: data.accuracy || 0,
+      difficulty: data.difficulty || 'medium',
+      lastUsed: data.lastUsed?.toDate(),
+      firstUsed: data.firstUsed?.toDate()
+    }
+  }).filter((word: any) => word !== null)
+
+  // Get difficulty distribution
+  const difficultyStats = wordStats.reduce((acc: any, word: any) => {
+    acc[word.difficulty] = (acc[word.difficulty] || 0) + 1
+    return acc
+  }, {})
+
+  // Get most/least accurate words
+  const sortedByAccuracy = [...wordStats].sort((a: any, b: any) => b.accuracy - a.accuracy)
+  const mostAccurate = sortedByAccuracy.slice(0, 10)
+  const leastAccurate = sortedByAccuracy.slice(-10).reverse()
+
+  return {
+    wordStats,
+    difficultyStats,
+    mostAccurate,
+    leastAccurate,
+    totalWords: wordStats.length,
     period: `${days} days`
   }
 }

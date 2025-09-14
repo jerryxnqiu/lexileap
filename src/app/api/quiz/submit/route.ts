@@ -1,8 +1,116 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
+import { QuizQuestion } from '@/types/quiz'
 
 export const dynamic = 'force-dynamic'
+
+async function updateDailyAnalytics(db: any, date: Date, score: number, totalQuestions: number, userId: string) {
+  try {
+    const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
+    const dailyRef = db.collection('daily_analytics').doc(dateStr)
+    
+    await db.runTransaction(async (transaction: any) => {
+      const dailyDoc = await transaction.get(dailyRef)
+      
+      if (dailyDoc.exists) {
+        const data = dailyDoc.data()
+        const newTotalQuizzes = (data.totalQuizzes || 0) + 1
+        const newTotalScore = (data.totalScore || 0) + score
+        const newTotalQuestions = (data.totalQuestions || 0) + totalQuestions
+        
+        // Check if this is a new user for today
+        const existingUsers = data.users || []
+        const isNewUser = !existingUsers.includes(userId)
+        const newTotalUsers = isNewUser ? (data.totalUsers || 0) + 1 : (data.totalUsers || 0)
+        
+        transaction.update(dailyRef, {
+          totalUsers: newTotalUsers,
+          totalQuizzes: newTotalQuizzes,
+          totalScore: newTotalScore,
+          totalQuestions: newTotalQuestions,
+          averageScore: Math.round(newTotalScore / newTotalQuizzes),
+          averagePercentage: Math.round((newTotalScore / newTotalQuestions) * 100),
+          users: isNewUser ? [...existingUsers, userId] : existingUsers,
+          lastUpdated: new Date()
+        })
+      } else {
+        transaction.set(dailyRef, {
+          date: dateStr,
+          totalUsers: 1,
+          totalQuizzes: 1,
+          totalScore: score,
+          totalQuestions: totalQuestions,
+          averageScore: score,
+          averagePercentage: Math.round((score / totalQuestions) * 100),
+          users: [userId],
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        })
+      }
+    })
+  } catch (error) {
+    logger.error('Error updating daily analytics:', error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
+async function updateWordAnalytics(db: any, questions: QuizQuestion[], answers: number[]) {
+  try {
+    const batch = db.batch()
+    
+    for (let i = 0; i < questions.length; i++) {
+      const question = questions[i]
+      const answer = answers[i]
+      const isCorrect = answer !== null && answer === question.correctIndex
+      
+      const wordRef = db.collection('word_analytics').doc(question.word)
+      const wordDoc = await wordRef.get()
+      
+      if (wordDoc.exists) {
+        const data = wordDoc.data()
+        const newTimesTested = (data.timesTested || 0) + 1
+        const newTimesCorrect = (data.timesCorrect || 0) + (isCorrect ? 1 : 0)
+        const newAccuracy = Math.round((newTimesCorrect / newTimesTested) * 100)
+        
+        // Determine difficulty based on accuracy
+        let difficulty = 'medium'
+        if (newAccuracy >= 80) difficulty = 'easy'
+        else if (newAccuracy <= 40) difficulty = 'hard'
+        
+        batch.update(wordRef, {
+          word: question.word,
+          timesTested: newTimesTested,
+          timesCorrect: newTimesCorrect,
+          accuracy: newAccuracy,
+          difficulty: difficulty,
+          lastUsed: new Date(),
+          lastUpdated: new Date()
+        })
+      } else {
+        const accuracy = isCorrect ? 100 : 0
+        let difficulty = 'medium'
+        if (accuracy >= 80) difficulty = 'easy'
+        else if (accuracy <= 40) difficulty = 'hard'
+        
+        batch.set(wordRef, {
+          word: question.word,
+          timesTested: 1,
+          timesCorrect: isCorrect ? 1 : 0,
+          accuracy: accuracy,
+          difficulty: difficulty,
+          firstUsed: new Date(),
+          lastUsed: new Date(),
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        })
+      }
+    }
+    
+    await batch.commit()
+  } catch (error) {
+    logger.error('Error updating word analytics:', error instanceof Error ? error : new Error(String(error)))
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -97,6 +205,12 @@ export async function POST(request: Request) {
       createdAt: new Date()
     })
 
+    // Update daily analytics
+    await updateDailyAnalytics(db, new Date(endTime), score, questions.length, sessionData.userId)
+
+    // Update word analytics for each question
+    await updateWordAnalytics(db, questions, answers)
+
     if (userDoc.exists) {
       // Update existing user summary
       const userData = userDoc.data()
@@ -108,9 +222,7 @@ export async function POST(request: Request) {
         totalScore: newTotalScore,
         averageScore: Math.round(newTotalScore / newTotalQuizzes),
         bestScore: Math.max(userData?.bestScore || 0, score),
-        lastQuizDate: new Date(endTime),
-        // Keep a small recent history for quick access (last 5)
-        recentQuizzes: [quizResult, ...(userData?.recentQuizzes || []).slice(0, 4)]
+        lastQuizDate: new Date(endTime)
       })
     } else {
       // Create new user record
@@ -121,8 +233,7 @@ export async function POST(request: Request) {
         averageScore: score,
         bestScore: score,
         firstQuizDate: new Date(endTime),
-        lastQuizDate: new Date(endTime),
-        recentQuizzes: [quizResult]
+        lastQuizDate: new Date(endTime)
       })
     }
 

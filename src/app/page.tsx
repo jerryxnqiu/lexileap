@@ -12,7 +12,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   // removed unused wordnetSummary
-  const [view, setView] = useState<'menu' | 'quiz' | 'list' | 'scores'>('menu');
+  const [view, setView] = useState<'menu' | 'quiz' | 'list'>('menu');
   const [wordnetData, setWordnetData] = useState<Record<string, WordData> | null>(null);
   const [isWordnetLoading, setIsWordnetLoading] = useState(false);
 
@@ -175,16 +175,16 @@ export default function Home() {
                     <span className="text-xl">📚</span>
                     <span className="text-lg font-semibold">Review all vocabulary</span>
                   </button>
-                  <button
-                    onClick={() => setView('scores')}
+                  <a
+                    href="/dashboard"
                     className="rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2"
                   >
                     <span className="text-xl">📈</span>
                     <span className="text-lg font-semibold">Review your past scores</span>
-                  </button>
+                  </a>
                   {user.isAdmin && (
                     <a
-                      href="/admin"
+                      href="/admin-dashboard"
                       className="rounded-3xl bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2 text-center"
                     >
                       <span className="text-xl">🛠️</span>
@@ -214,16 +214,6 @@ export default function Home() {
               </div>
             )}
 
-            {view === 'scores' && (
-              <div>
-                <div className="mb-4">
-                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
-                </div>
-                <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600">
-                  Coming soon: your past scores and progress.
-                </div>
-              </div>
-            )}
           </div>
         )}
       </main>

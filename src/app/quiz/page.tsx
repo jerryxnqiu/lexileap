@@ -82,7 +82,7 @@ export default function QuizPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [session, finishQuiz]);
+  }, [session?.id, session?.endTime, finishQuiz]);
 
   const startQuiz = async () => {
     if (!user) return;
