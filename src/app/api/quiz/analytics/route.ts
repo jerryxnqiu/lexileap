@@ -24,8 +24,6 @@ export async function GET(request: Request) {
           return NextResponse.json({ error: 'User ID required for user analytics' }, { status: 400 })
         }
         results.user = await getUserStats(db, userId, days)
-
-        logger.info(`User stats: ${JSON.stringify(results.user)}`)
         break
       case 'words':
         results.words = await getWordStats(db, days)

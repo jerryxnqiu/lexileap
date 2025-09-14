@@ -188,6 +188,7 @@ export async function POST(request: Request) {
 
     const quizResult = {
       sessionId,
+      userId: sessionData.userId,
       score,
       totalQuestions: questions.length,
       percentage: Math.round((score / questions.length) * 100),
