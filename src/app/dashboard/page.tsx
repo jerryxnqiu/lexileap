@@ -39,6 +39,8 @@ export default function UserDashboard() {
       if (response.ok) {
         const data = await response.json();
         console.log('User stats data:', data);
+        console.log('data.user:', data.user);
+        console.log('Setting stats to:', data.user);
         setStats(data.user);
       } else {
         const errorText = await response.text();
@@ -79,6 +81,10 @@ export default function UserDashboard() {
   if (!user) {
     return null;
   }
+
+  console.log('Current stats state:', stats);
+  console.log('Stats is null?', stats === null);
+  console.log('Stats is undefined?', stats === undefined);
 
   if (!stats) {
     return (

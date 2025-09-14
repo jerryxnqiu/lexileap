@@ -222,21 +222,21 @@ export default function AdminPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left py-3 px-4">Date</th>
-                        <th className="text-left py-3 px-4">Users</th>
-                        <th className="text-left py-3 px-4">Quizzes</th>
-                        <th className="text-left py-3 px-4">Avg Score</th>
-                        <th className="text-left py-3 px-4">Avg %</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Date</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Users</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Quizzes</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Avg Score</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Avg %</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dailyStats.dailyStats.slice(0, 10).map((day) => (
                         <tr key={day.date} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4">{formatDate(day.date)}</td>
-                          <td className="py-3 px-4">{day.totalUsers}</td>
-                          <td className="py-3 px-4">{day.totalQuizzes}</td>
-                          <td className="py-3 px-4">{day.averageScore}</td>
-                          <td className="py-3 px-4">{day.averagePercentage}%</td>
+                          <td className="py-3 px-4 text-gray-800">{formatDate(day.date)}</td>
+                          <td className="py-3 px-4 text-gray-800">{day.totalUsers}</td>
+                          <td className="py-3 px-4 text-gray-800">{day.totalQuizzes}</td>
+                          <td className="py-3 px-4 text-gray-800">{day.averageScore}</td>
+                          <td className="py-3 px-4 text-gray-800">{day.averagePercentage}%</td>
                         </tr>
                       ))}
                     </tbody>
@@ -257,7 +257,7 @@ export default function AdminPage() {
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${getDifficultyColor(difficulty)}`}>
                           {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
                         </span>
-                        <span className="font-bold">{count} words</span>
+                        <span className="font-bold text-gray-800">{count} words</span>
                       </div>
                     ))}
                   </div>
@@ -272,7 +272,7 @@ export default function AdminPage() {
                       <div className="space-y-1">
                         {wordAnalytics.mostAccurate.slice(0, 5).map((word) => (
                           <div key={word.word} className="text-sm">
-                            <span className="font-medium">{word.word}</span>
+                            <span className="font-medium text-gray-800">{word.word}</span>
                             <span className="text-green-600 ml-2">{word.accuracy}%</span>
                           </div>
                         ))}
@@ -283,7 +283,7 @@ export default function AdminPage() {
                       <div className="space-y-1">
                         {wordAnalytics.leastAccurate.slice(0, 5).map((word) => (
                           <div key={word.word} className="text-sm">
-                            <span className="font-medium">{word.word}</span>
+                            <span className="font-medium text-gray-800">{word.word}</span>
                             <span className="text-red-600 ml-2">{word.accuracy}%</span>
                           </div>
                         ))}
@@ -302,21 +302,21 @@ export default function AdminPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left py-3 px-4">Time</th>
-                        <th className="text-left py-3 px-4">User</th>
-                        <th className="text-left py-3 px-4">Score</th>
-                        <th className="text-left py-3 px-4">Percentage</th>
-                        <th className="text-left py-3 px-4">Duration</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Time</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">User</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Score</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Percentage</th>
+                        <th className="text-left py-3 px-4 text-gray-900 font-semibold">Duration</th>
                       </tr>
                     </thead>
                     <tbody>
                       {recentActivity.recentSessions.map((session) => (
                         <tr key={session.sessionId} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4">{formatDateTime(session.endTime)}</td>
-                          <td className="py-3 px-4">{session.userId}</td>
-                          <td className="py-3 px-4">{session.score}/{session.totalQuestions}</td>
-                          <td className="py-3 px-4">{session.percentage}%</td>
-                          <td className="py-3 px-4">{session.duration ? `${session.duration}m` : 'N/A'}</td>
+                          <td className="py-3 px-4 text-gray-800">{formatDateTime(session.endTime)}</td>
+                          <td className="py-3 px-4 text-gray-800">{session.userId}</td>
+                          <td className="py-3 px-4 text-gray-800">{session.score}/{session.totalQuestions}</td>
+                          <td className="py-3 px-4 text-gray-800">{session.percentage}%</td>
+                          <td className="py-3 px-4 text-gray-800">{session.duration ? `${session.duration}m` : 'N/A'}</td>
                         </tr>
                       ))}
                     </tbody>
