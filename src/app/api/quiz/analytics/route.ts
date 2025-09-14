@@ -101,10 +101,12 @@ async function getUserStats(db: Firestore, userId: string, days: number) {
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
   // Get ALL user's quiz attempts by querying the userId field
+  logger.info(`Querying user_quiz_attempts for userId: ${userId}`)
   const attemptsSnapshot = await db.collection('user_quiz_attempts')
     .where('userId', '==', userId)
-    .orderBy('completedAt', 'desc')
     .get()
+  
+  logger.info(`Found ${attemptsSnapshot.docs.length} documents for user ${userId}`)
 
   const allAttempts = attemptsSnapshot.docs.map((doc: DocumentSnapshot) => {
     const data = doc.data()
@@ -115,6 +117,10 @@ async function getUserStats(db: Firestore, userId: string, days: number) {
       completedAt: data?.completedAt?.toDate(),
       createdAt: data?.createdAt?.toDate()
     }
+  }).sort((a, b) => {
+    // Sort by completedAt descending (most recent first)
+    if (!a.completedAt || !b.completedAt) return 0
+    return b.completedAt.getTime() - a.completedAt.getTime()
   })
 
   // Filter recent attempts if days specified
