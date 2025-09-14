@@ -184,7 +184,7 @@ export default function Home() {
                   </a>
                   {user.isAdmin && (
                     <a
-                      href="/admin-dashboard"
+                      href="/admin"
                       className="rounded-3xl bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2 text-center"
                     >
                       <span className="text-xl">🛠️</span>

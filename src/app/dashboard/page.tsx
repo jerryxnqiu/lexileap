@@ -32,10 +32,17 @@ export default function UserDashboard() {
 
   const fetchUserStats = async (userId: string, days: number) => {
     try {
+      console.log('Fetching user stats for:', userId, 'days:', days);
       const response = await fetch(`/api/quiz/analytics?type=user&userId=${userId}&days=${days}`);
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('User stats data:', data);
         setStats(data.user);
+      } else {
+        const errorText = await response.text();
+        console.error('API error:', errorText);
       }
     } catch (error) {
       console.error('Error fetching user stats:', error);
@@ -69,8 +76,31 @@ export default function UserDashboard() {
     );
   }
 
-  if (!user || !stats) {
+  if (!user) {
     return null;
+  }
+
+  if (!stats) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100">
+        <Header user={user} onLogout={handleLogout} />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">Your Progress Dashboard</h1>
+            <div className="bg-white rounded-lg shadow-lg p-8">
+              <p className="text-lg text-gray-600 mb-4">No quiz data found yet.</p>
+              <p className="text-gray-500 mb-6">Take your first quiz to see your progress here!</p>
+              <button
+                onClick={() => router.push('/quiz')}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Take Your First Quiz
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
