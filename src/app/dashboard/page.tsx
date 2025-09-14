@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { UserStats } from '@/types/analytics';
+import { logger } from '@/libs/utils/logger';
 
 export default function UserDashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -22,7 +23,7 @@ export default function UserDashboard() {
         setUser(userData);
         fetchUserStats(userData.email, timeRange);
       } catch (error) {
-        console.error('Invalid user data:', error);
+        logger.error('Invalid user data:', error instanceof Error ? error : new Error(String(error)));
         router.push('/');
       }
     } else {
@@ -32,22 +33,22 @@ export default function UserDashboard() {
 
   const fetchUserStats = async (userId: string, days: number) => {
     try {
-      console.log('Fetching user stats for:', userId, 'days:', days);
+      logger.info(`Fetching user stats for: ${userId}, days: ${days}`);
       const response = await fetch(`/api/quiz/analytics?type=user&userId=${userId}&days=${days}`);
-      console.log('Response status:', response.status);
+      logger.info(`Response status: ${response.status}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('User stats data:', data);
-        console.log('data.user:', data.user);
-        console.log('Setting stats to:', data.user);
+        logger.info('User stats data:', data);
+        logger.info('data.user:', data.user);
+        logger.info('Setting stats to:', data.user);
         setStats(data.user);
       } else {
         const errorText = await response.text();
-        console.error('API error:', errorText);
+        logger.error('API error:', errorText);
       }
     } catch (error) {
-      console.error('Error fetching user stats:', error);
+      logger.error('Error fetching user stats:', error instanceof Error ? error : new Error(String(error)));
     } finally {
       setLoading(false);
     }
@@ -82,9 +83,9 @@ export default function UserDashboard() {
     return null;
   }
 
-  console.log('Current stats state:', stats);
-  console.log('Stats is null?', stats === null);
-  console.log('Stats is undefined?', stats === undefined);
+  logger.info(`Current stats state: ${JSON.stringify(stats)}`);
+  logger.info(`Stats is null? ${stats === null}`);
+  logger.info(`Stats is undefined? ${stats === undefined}`);
 
   if (!stats) {
     return (

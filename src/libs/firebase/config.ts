@@ -5,6 +5,7 @@ import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import type { FirebaseStorage } from "firebase/storage";
+import { logger } from "../utils/logger";
 
 // Define a type for our Firebase services
 interface FirebaseServices {
@@ -29,21 +30,21 @@ async function initializeFirebase(): Promise<FirebaseServices> {
   // Start new initialization
   initializationPromise = (async () => {
     try {
-      console.log('Starting Auking services...');
+      logger.info('Starting Auking services...');
       const response = await fetch('/api/config');
       
       if (!response.ok) {
-        console.error('Config API error:', response.status, response.statusText);
+        logger.error(`Config API error: ${response.status} ${response.statusText}`);
         const text = await response.text();
-        console.error('Error response:', text);
+        logger.error(`Error response: ${text}`);
         throw new Error(`Config API failed: ${response.status}`);
       }
 
       const firebaseConfig = await response.json();
-      // console.log('Config received:', JSON.stringify(firebaseConfig, null, 2));
+      // logger.info(`Config received: ${JSON.stringify(firebaseConfig, null, 2)}`);
 
       if (!firebaseConfig || !firebaseConfig.apiKey) {
-        console.error('Invalid config:', firebaseConfig);
+        logger.error(`Invalid config: ${JSON.stringify(firebaseConfig)}`);
         throw new Error('Invalid Firebase configuration');
       }
 
@@ -57,10 +58,10 @@ async function initializeFirebase(): Promise<FirebaseServices> {
         analytics: typeof window !== 'undefined' ? getAnalytics(app) : null
       };
 
-      console.log('Auking services initialized successfully');
+      logger.info('Auking services initialized successfully');
       return firebaseServices;
     } catch (error) {
-      console.error('Auking services initialization error:', error);
+      logger.error('Auking services initialization error:', error instanceof Error ? error : new Error(String(error)));
       initializationPromise = null; // Reset promise on error
       throw error;
     }
