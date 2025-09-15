@@ -1,12 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_req: Request, context: { params: { id: string } }) {
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const sessionId = context.params.id
+    const { id } = await context.params
+    const sessionId = id
     if (!sessionId) {
       return NextResponse.json({ error: 'Missing session id' }, { status: 400 })
     }
