@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { OverviewStats, DailyStats, WordAnalytics, RecentActivity } from '@/types/analytics';
@@ -16,7 +15,6 @@ export default function AdminPage() {
   const [wordAnalytics, setWordAnalytics] = useState<WordAnalytics | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity | null>(null);
   const [activeTab, setActiveTab] = useState<'data' | 'analytics'>('data');
-  const router = useRouter();
 
   useEffect(() => {
     try {

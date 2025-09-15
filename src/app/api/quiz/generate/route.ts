@@ -48,7 +48,7 @@ export async function GET(request: Request) {
           }
           if (value) controller.enqueue(value)
           return pump()
-        }).catch(err => {
+        }).catch((err: unknown) => {
           logger.error('SSE proxy read error:', err instanceof Error ? err : new Error(String(err)))
           controller.close()
         })

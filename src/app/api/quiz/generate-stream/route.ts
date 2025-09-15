@@ -41,12 +41,13 @@ async function getUserWeakWords(db: FirebaseFirestore.Firestore, userId: string,
     type Agg = { total: number; wrong: number; lastFailedAt?: number }
     const agg: Record<string, Agg> = {}
     attemptsSnap.forEach(doc => {
-      const data = doc.data() as any
-      const answers = Array.isArray(data?.answers) ? data.answers : []
-      const completedAt: number = data?.completedAt?.toDate?.()?.getTime?.() ?? Date.now()
+      const raw = doc.data() as Record<string, unknown>
+      const answers = Array.isArray(raw?.answers) ? (raw.answers as Array<Record<string, unknown>>) : []
+      const ts = raw?.completedAt as { toDate?: () => Date } | undefined
+      const completedAt: number = ts?.toDate?.()?.getTime?.() ?? Date.now()
       for (const a of answers) {
-        const word: string | undefined = a?.word
-        const isCorrect: boolean | undefined = a?.isCorrect
+        const word = (a?.word as string | undefined)
+        const isCorrect = (a?.isCorrect as boolean | undefined)
         if (!word) continue
         if (!agg[word]) agg[word] = { total: 0, wrong: 0 }
         agg[word].total += 1
@@ -225,7 +226,7 @@ export async function GET(request: Request) {
               usedWords.add(w.word)
               send('word', { word: w.word, count: questions.length })
               await saveQuestionToBank(q)
-            } catch (err) {
+            } catch {
               send('error', { word: w.word, message: 'DeepSeek failed' })
             }
           }
@@ -254,7 +255,7 @@ export async function GET(request: Request) {
           const db = await getDb()
           const need = target - questions.length
           // Get prioritized list of weak words
-          const weakWords = await getUserWeakWords(db as any, userId, need * 3)
+          const weakWords = await getUserWeakWords(db, userId, need * 3)
           // Fetch bank pool and map by word for quick lookup
           const bankPool = await getQuestionsFromBank(need * 5)
           const byWord = new Map<string, QuizQuestion>()
