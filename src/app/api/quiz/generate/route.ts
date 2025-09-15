@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         const reader = upstream.body!.getReader()
-        const pump = (): any => reader.read().then(({ done, value }) => {
+        const pump = (): Promise<void> => reader.read().then(({ done, value }) => {
           if (done) {
             controller.close()
             return
