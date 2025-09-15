@@ -154,6 +154,27 @@ export default function AdminPage() {
             >
               Prepare WordNet Data
             </button>
+            <div className="h-4" />
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/google-ngram/generate-data', {
+                    method: 'POST'
+                  })
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    alert(`Google Ngram job failed: ${data.error || res.statusText}`)
+                  } else {
+                    alert('Google Ngram generation triggered. Top n-gram files will appear in Firebase Storage.')
+                  }
+                } catch (error) {
+                  alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                }
+              }}
+              className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-fuchsia-600 px-6 py-4 text-white font-semibold hover:from-purple-700 hover:to-fuchsia-700 shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              Prepare Google Ngram Data
+            </button>
           </div>
         )}
 
