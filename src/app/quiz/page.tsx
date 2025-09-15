@@ -12,7 +12,7 @@ export default function QuizPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(1500); // each question is 30 seconds
   const router = useRouter();
   const sessionRef = useRef<QuizSession | null>(null);
   const userRef = useRef<User | null>(null);
