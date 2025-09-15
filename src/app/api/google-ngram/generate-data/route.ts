@@ -29,6 +29,7 @@ async function aggregateFromUrls(urls: string[], n: number): Promise<Map<string,
       const isGzip = url.endsWith('.gz') || /gzip/i.test(contentEncoding) || /application\/(x-)?gzip/i.test(contentType)
       try {
         if (isGzip && typeof DecompressionStream !== 'undefined') {
+          // @ts-expect-error - DecompressionStream type compatibility issue with Node.js streams
           stream = stream.pipeThrough(new DecompressionStream('gzip'))
         }
       } catch {}
