@@ -225,8 +225,8 @@ export default function UserDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {stats.allAttempts.slice(0, 20).map((attempt) => (
-                  <tr key={attempt.id} className="border-b hover:bg-gray-50">
+                {stats.allAttempts.slice(0, 50).map((attempt) => (
+                  <tr key={attempt.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/attempt/${encodeURIComponent(attempt.id)}`)}>
                     <td className="py-3 px-4">{formatDate(attempt.completedAt)}</td>
                     <td className={`py-3 px-4 font-medium ${getScoreColor(attempt.score, attempt.totalQuestions)}`}>
                       {attempt.score}/{attempt.totalQuestions}
