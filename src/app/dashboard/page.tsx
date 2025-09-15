@@ -117,7 +117,7 @@ export default function UserDashboard() {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Your Progress Dashboard</h1>
-          <p className="text-lg text-gray-600">Track your vocabulary learning journey</p>
+          <p className="text-lg text-gray-800">Track your vocabulary learning journey</p>
         </div>
 
         {/* Time Range Selector */}
@@ -130,7 +130,7 @@ export default function UserDashboard() {
                 className={`px-4 py-2 rounded-lg font-medium ${
                   timeRange === days
                     ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    : 'bg-white text-gray-800 hover:bg-gray-50'
                 }`}
               >
                 {days === 0 ? 'All Time' : `${days} Days`}
@@ -143,24 +143,24 @@ export default function UserDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="text-3xl font-bold text-blue-600 mb-2">{stats.totalQuizzes}</div>
-            <div className="text-gray-600">Total Quizzes</div>
+            <div className="text-gray-800">Total Quizzes</div>
           </div>
           
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="text-3xl font-bold text-green-600 mb-2">{stats.overallAverageScore}</div>
-            <div className="text-gray-600">Average Score</div>
+            <div className="text-gray-800">Average Score</div>
           </div>
           
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="text-3xl font-bold text-purple-600 mb-2">{stats.bestScore}</div>
-            <div className="text-gray-600">Best Score</div>
+            <div className="text-gray-800">Best Score</div>
           </div>
           
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className={`text-3xl font-bold mb-2 ${stats.improvement >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {stats.improvement >= 0 ? '+' : ''}{stats.improvement}
             </div>
-            <div className="text-gray-600">Improvement</div>
+            <div className="text-gray-800">Improvement</div>
           </div>
         </div>
 
@@ -174,13 +174,13 @@ export default function UserDashboard() {
                 <div key={attempt.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div>
                     <div className="font-medium">{formatDate(attempt.completedAt)}</div>
-                    <div className="text-sm text-gray-600">{attempt.totalQuestions} questions</div>
+                    <div className="text-sm text-gray-700">{attempt.totalQuestions} questions</div>
                   </div>
                   <div className="text-right">
                     <div className={`font-bold ${getScoreColor(attempt.score, attempt.totalQuestions)}`}>
                       {attempt.score}/{attempt.totalQuestions}
                     </div>
-                    <div className="text-sm text-gray-600">{attempt.percentage}%</div>
+                    <div className="text-sm text-gray-700">{attempt.percentage}%</div>
                   </div>
                 </div>
               ))}
@@ -192,19 +192,19 @@ export default function UserDashboard() {
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Performance Trends</h2>
             <div className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-gray-600">Overall Average:</span>
+                <span className="text-gray-800">Overall Average:</span>
                 <span className="font-bold text-green-600">{stats.overallAverageScore}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Recent Average:</span>
+                <span className="text-gray-800">Recent Average:</span>
                 <span className="font-bold text-blue-600">{stats.recentAverageScore}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Best Score:</span>
+                <span className="text-gray-800">Best Score:</span>
                 <span className="font-bold text-purple-600">{stats.bestScore}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Worst Score:</span>
+                <span className="text-gray-800">Worst Score:</span>
                 <span className="font-bold text-red-600">{stats.worstScore}</span>
               </div>
             </div>
