@@ -5,44 +5,66 @@ import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+// SSE proxy: streams from the data-processing instance to the client
+export async function GET(request: Request) {
   try {
-    // Get second instance URL
     const base = await getSecret('lexileap-data-url')
-    
     if (!base) {
       return NextResponse.json({ error: 'Data processing service not configured' }, { status: 503 })
     }
 
-    // Get request body
-    const body = await request.json()
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
 
-    // Proxy to second instance
     const auth = new GoogleAuth()
     const client = await auth.getIdTokenClient(base)
     const headers = await client.getRequestHeaders()
-    
-    const upstream = await fetch(`${base}/api/quiz/generate-data`, { 
-      method: 'POST',
+
+    const upstream = await fetch(`${base}/api/quiz/generate-stream?userId=${encodeURIComponent(userId)}`, {
+      method: 'GET',
       headers: {
-        ...headers,
-        'Content-Type': 'application/json'
+        ...headers
       },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(300000) // 5 minutes timeout for generation
+      cache: 'no-store'
     })
-    
-    if (!upstream.ok) {
-      const errorText = await upstream.text()
-      logger.error('Data processing instance error:', new Error(`Status ${upstream.status}: ${errorText}`))
-      return NextResponse.json({ error: 'Quiz generation failed', details: errorText }, { status: upstream.status })
+
+    if (!upstream.ok || !upstream.body) {
+      const text = await upstream.text().catch(() => '')
+      logger.error('SSE upstream error:', new Error(`Status ${upstream.status}: ${text}`))
+      return NextResponse.json({ error: 'Upstream SSE failed' }, { status: 502 })
     }
 
-    const result = await upstream.json()
-    return NextResponse.json(result)
+    // Pipe upstream SSE to client
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const reader = upstream.body!.getReader()
+        const pump = (): any => reader.read().then(({ done, value }) => {
+          if (done) {
+            controller.close()
+            return
+          }
+          if (value) controller.enqueue(value)
+          return pump()
+        }).catch(err => {
+          logger.error('SSE proxy read error:', err instanceof Error ? err : new Error(String(err)))
+          controller.close()
+        })
+        return pump()
+      }
+    })
+
+    return new NextResponse(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive'
+      }
+    })
   } catch (error) {
-    logger.error('Quiz generation proxy error:', error instanceof Error ? error : new Error(String(error)))
+    logger.error('SSE proxy error:', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
   }
 }

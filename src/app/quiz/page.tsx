@@ -110,23 +110,35 @@ export default function QuizPage() {
     setGenerating(true);
     setTimeLeft(600); // Reset timer
     try {
-      const response = await fetch('/api/quiz/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.email })
-      });
+      // Use SSE to stream generation progress and receive the session when complete
+      const es = new EventSource(`/api/quiz/generate?userId=${encodeURIComponent(user.email)}`);
 
-      if (!response.ok) {
-        throw new Error('Failed to generate quiz');
-      }
+      const handleComplete = (e: MessageEvent) => {
+        try {
+          const data = JSON.parse((e as MessageEvent).data);
+          if (data && data.session) {
+            setSession(data.session);
+          }
+        } catch {}
+        es.close();
+        setGenerating(false);
+      };
 
-      const quizData = await response.json();
-      setSession(quizData);
+      const handleError = () => {
+        es.close();
+        setGenerating(false);
+        alert('Failed to generate quiz. Please try again.');
+      };
+
+      es.addEventListener('complete', handleComplete as EventListener);
+      es.addEventListener('error', handleError as EventListener);
+
+      // Optional: listen to progress events (start, bank, batch, word) to show UI feedback later
+      // es.addEventListener('word', (e) => {/* update progress */});
     } catch (error) {
-      console.error('Error generating quiz:', error);
-      alert('Failed to generate quiz. Please try again.');
-    } finally {
+      console.error('Error starting generation stream:', error);
       setGenerating(false);
+      alert('Failed to start quiz generation. Please try again.');
     }
   };
 
