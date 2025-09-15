@@ -12,34 +12,6 @@ function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 function hasContentWord(tokens: string[]): boolean { return tokens.some(t=>!STOPWORDS.has(t.toLowerCase())) }
 
-async function readFileIfExists(path: string): Promise<string | null> {
-  const storage = await getStorage()
-  const file = storage.bucket().file(path)
-  const [exists] = await file.exists()
-  if (!exists) return null
-  const [buf] = await file.download()
-  return buf.toString()
-}
-
-async function downloadToStorage(url: string, destPath: string): Promise<void> {
-  const storage = await getStorage()
-  const res = await fetch(url, { cache: 'no-store' })
-  if (!res.ok || !res.body) {
-    throw new Error(`Download failed ${res.status}: ${res.statusText}`)
-  }
-  const reader = res.body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  // Simple accumulate into memory; for very large files, switch to resumable upload/streaming
-  // Here we expect pre-processed subset links
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (value) { chunks.push(value); total += value.length }
-  }
-  const buffer = Buffer.concat(chunks.map(u => Buffer.from(u)))
-  await storage.bucket().file(destPath).save(buffer)
-}
 
 async function aggregateFromUrls(urls: string[], n: number): Promise<Map<string, number>> {
   const agg = new Map<string, number>()
@@ -57,7 +29,6 @@ async function aggregateFromUrls(urls: string[], n: number): Promise<Map<string,
       const isGzip = url.endsWith('.gz') || /gzip/i.test(contentEncoding) || /application\/(x-)?gzip/i.test(contentType)
       try {
         if (isGzip && typeof DecompressionStream !== 'undefined') {
-          // @ts-ignore - DecompressionStream is a web API available in Node runtimes used by Next.js
           stream = stream.pipeThrough(new DecompressionStream('gzip'))
         }
       } catch {}
@@ -112,45 +83,6 @@ async function aggregateFromUrls(urls: string[], n: number): Promise<Map<string,
   return agg
 }
 
-function parseLines(raw: string): Array<{ gram: string; freq: number }> {
-  const out: Array<{ gram: string; freq: number }> = []
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      for (const item of parsed) {
-        const gram = (item.gram ?? item.ngram ?? item.term ?? '').toString()
-        const freqNum = Number(item.totalFrequency ?? item.freq ?? item.matches ?? item.count ?? 0)
-        if (gram && Number.isFinite(freqNum)) out.push({ gram, freq: freqNum })
-      }
-      if (out.length>0) return out
-    }
-  } catch {}
-  for (const line of raw.split(/\r?\n/)) {
-    const s = line.trim(); if (!s) continue
-    if (s.startsWith('{') && s.endsWith('}')) {
-      try {
-        const item = JSON.parse(s)
-        const gram = (item.gram ?? item.ngram ?? item.term ?? '').toString()
-        const freqNum = Number(item.totalFrequency ?? item.freq ?? item.matches ?? item.count ?? 0)
-        if (gram && Number.isFinite(freqNum)) out.push({ gram, freq: freqNum })
-        continue
-      } catch {}
-    }
-    const parts = s.split('\t')
-    if (parts.length>=3) {
-      const gram = parts[0]
-      const match = Number(parts[2])
-      if (gram && Number.isFinite(match)) out.push({ gram, freq: match })
-    }
-  }
-  return out
-}
-
-function aggregateByGram(rows: Array<{ gram: string; freq: number }>): Map<string, number> {
-  const map = new Map<string, number>()
-  for (const r of rows) map.set(r.gram, (map.get(r.gram) ?? 0) + r.freq)
-  return map
-}
 
 function filterAndRank(map: Map<string, number>, n: number, topN: number): Array<{ gram: string; freq: number }> {
   const items: Array<{ gram: string; freq: number }> = []
