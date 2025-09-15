@@ -173,7 +173,7 @@ export default function UserDashboard() {
               {stats.recentAttempts.slice(0, 5).map((attempt) => (
                 <div key={attempt.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div>
-                    <div className="font-medium">{formatDate(attempt.completedAt)}</div>
+                    <div className="font-medium text-gray-900">{formatDate(attempt.completedAt)}</div>
                     <div className="text-sm text-gray-700">{attempt.totalQuestions} questions</div>
                   </div>
                   <div className="text-right">
@@ -227,12 +227,12 @@ export default function UserDashboard() {
               <tbody>
                 {stats.allAttempts.slice(0, 50).map((attempt) => (
                   <tr key={attempt.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/attempt/${encodeURIComponent(attempt.id)}`)}>
-                    <td className="py-3 px-4">{formatDate(attempt.completedAt)}</td>
+                    <td className="py-3 px-4 text-gray-900">{formatDate(attempt.completedAt)}</td>
                     <td className={`py-3 px-4 font-medium ${getScoreColor(attempt.score, attempt.totalQuestions)}`}>
                       {attempt.score}/{attempt.totalQuestions}
                     </td>
-                    <td className="py-3 px-4">{attempt.percentage}%</td>
-                    <td className="py-3 px-4">{attempt.totalQuestions}</td>
+                    <td className="py-3 px-4 text-gray-900">{attempt.percentage}%</td>
+                    <td className="py-3 px-4 text-gray-900">{attempt.totalQuestions}</td>
                   </tr>
                 ))}
               </tbody>
