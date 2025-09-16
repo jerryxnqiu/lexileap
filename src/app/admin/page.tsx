@@ -9,6 +9,8 @@ export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [wordnetRunning, setWordnetRunning] = useState(false);
+  const [ngramRunning, setNgramRunning] = useState(false);
   const [timeRange, setTimeRange] = useState(30);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [dailyStats, setDailyStats] = useState<DailyStats | null>(null);
@@ -134,6 +136,8 @@ export default function AdminPage() {
           <div className="max-w-md mx-auto">
             <button
               onClick={async () => {
+                if (wordnetRunning) return;
+                setWordnetRunning(true);
                 try {
                   // Call the local proxy endpoint which handles authentication to data-processing instance
                   const res = await fetch('/api/wordnet/generate', { 
@@ -144,19 +148,25 @@ export default function AdminPage() {
                     const data = await res.json().catch(() => ({}))
                     alert(`Generation failed: ${data.error || res.statusText}`)
                   } else {
-                    alert('WordNet generation triggered. Check Firebase Storage for output.')
+                    alert('WordNet job started. Check logs/storage for progress.')
                   }
                 } catch (error) {
                   alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                } finally {
+                  setWordnetRunning(false);
                 }
               }}
-              className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
+              disabled={wordnetRunning}
+              aria-busy={wordnetRunning}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wordnetRunning ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'}`}
             >
-              Prepare WordNet Data
+              {wordnetRunning ? 'Starting WordNet…' : 'Prepare WordNet Data'}
             </button>
             <div className="h-4" />
             <button
               onClick={async () => {
+                if (ngramRunning) return;
+                setNgramRunning(true);
                 try {
                   const res = await fetch('/api/google-ngram/generate', {
                     method: 'POST'
@@ -165,15 +175,19 @@ export default function AdminPage() {
                     const data = await res.json().catch(() => ({}))
                     alert(`Google Ngram job failed: ${data.error || res.statusText}`)
                   } else {
-                    alert('Google Ngram generation triggered. Top n-gram files will appear in Firebase Storage.')
+                    alert('Google Ngram job started. Check logs/storage for progress.')
                   }
                 } catch (error) {
                   alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                } finally {
+                  setNgramRunning(false);
                 }
               }}
-              className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-fuchsia-600 px-6 py-4 text-white font-semibold hover:from-purple-700 hover:to-fuchsia-700 shadow-lg hover:shadow-xl transition-all duration-200"
+              disabled={ngramRunning}
+              aria-busy={ngramRunning}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${ngramRunning ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 hover:shadow-xl'}`}
             >
-              Prepare Google Ngram Data
+              {ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}
             </button>
           </div>
         )}
