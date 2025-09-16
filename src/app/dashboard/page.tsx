@@ -218,10 +218,10 @@ export default function UserDashboard() {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-3 px-4">Date</th>
-                  <th className="text-left py-3 px-4">Score</th>
-                  <th className="text-left py-3 px-4">Percentage</th>
-                  <th className="text-left py-3 px-4">Questions</th>
+                  <th className="text-left py-3 px-4 text-gray-900 font-semibold">Date</th>
+                  <th className="text-left py-3 px-4 text-gray-900 font-semibold">Score</th>
+                  <th className="text-left py-3 px-4 text-gray-900 font-semibold">Percentage</th>
+                  <th className="text-left py-3 px-4 text-gray-900 font-semibold">Questions</th>
                 </tr>
               </thead>
               <tbody>
