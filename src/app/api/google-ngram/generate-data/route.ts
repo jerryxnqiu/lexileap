@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getDb, getStorage } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
+import type { storage as AdminStorage } from 'firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,7 @@ async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 5): P
 }
 
 async function processShardWithFlush(
-  storage: any,
+  storage: AdminStorage.Storage,
   outPrefix: string,
   type: string,
   shardId: string,
