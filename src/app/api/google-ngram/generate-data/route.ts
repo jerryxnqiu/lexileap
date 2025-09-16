@@ -12,7 +12,8 @@ function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 function hasContentWord(tokens: string[]): boolean { return tokens.some(t=>!STOPWORDS.has(t.toLowerCase())) }
 
-
+// NOTE: This function is used to process a single URL and accumulate the results.
+// only keep words above frequency threshold to manage memory
 async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, number>, minFrequency: number = 5000): Promise<void> {
   try {
     logger.info(`Processing URL: ${url}`)
@@ -111,154 +112,51 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
   }
 }
 
-
-function filterAndRank(map: Map<string, number>, n: number, topN: number): Array<{ gram: string; freq: number }> {
-  const items: Array<{ gram: string; freq: number }> = []
-  for (const [gram, freq] of map.entries()) {
-    const tokens = gram.split(' ')
-    if (tokens.length !== n) continue
-    if (!isCleanGram(tokens)) continue
-    if (n===1) {
-      // ok
-    } else if (n===2) {
-      if (!hasContentWord(tokens) || (STOPWORDS.has(tokens[0].toLowerCase()) && STOPWORDS.has(tokens[1].toLowerCase()))) continue
-    } else {
-      if (!hasContentWord(tokens)) continue
-    }
-    items.push({ gram, freq })
-  }
-  items.sort((a,b)=>b.freq-a.freq)
-  return items.slice(0, topN)
-}
-
-function buildShardUrls(n: 1 | 2 | 3 | 4 | 5): string[] {
-  const base = `http://storage.googleapis.com/books/ngrams/books/googlebooks-eng-all-${n}gram-20120701-`
-  const letters = 'abcdefghijklmnopqrstuvwxyz'
-  const urls: string[] = []
-  
-  if (n === 1) {
-    // 1-gram: single letter shards (a-z)
-    for (let i = 0; i < letters.length; i++) {
-      urls.push(`${base}${letters[i]}.gz`)
-    }
-  } else {
-    // 2-5 gram: two-letter shards (aa-zz)
-    for (let i = 0; i < letters.length; i++) {
-      for (let j = 0; j < letters.length; j++) {
-        const shard = letters[i] + letters[j]
-        urls.push(`${base}${shard}.gz`)
-      }
-    }
-  }
-  return urls
-}
-
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    // Auto-generate n-gram URLs based on standard Google Books Ngram pattern
-    // No need to store URLs in Secret Manager since they follow a predictable pattern
+    // Get single URL from request body
+    let type: string
+    let url: string
+    
+    try {
+      const body = await request.json()
+      type = body.type
+      url = body.url
+      logger.info(`Received ${type} URL: ${url}`)
+    } catch {
+      logger.error('Failed to parse request body - type and url must be provided')
+      return NextResponse.json({ error: 'type and url must be provided in request body' }, { status: 400 })
+    }
+    
+    if (!type || !url) {
+      logger.error('Missing required type or url in request body')
+      return NextResponse.json({ error: 'type and url are required' }, { status: 400 })
+    }
+    
     const storage = await getStorage()
     const outPrefix = 'data/google-ngram'
+    const n = parseInt(type.replace('gram', '')) // Extract n from '1gram', '2gram', etc.
 
-    // Process 1-gram: all letters (a-z)
-    const oneGramUrls = buildShardUrls(1) // All 26 URLs (a-z)
-    logger.info(`Processing 1-gram with ${oneGramUrls.length} URLs`)
+    // Process single URL
+    logger.info(`Processing ${type} URL: ${url}`)
     
-    const oneGramAgg = new Map<string, number>()
-    for (let i = 0; i < oneGramUrls.length; i++) {
-      const url = oneGramUrls[i]
-      await processUrlAndAccumulate(url, 1, oneGramAgg)
-      logger.info(`After ${url}: ${oneGramAgg.size} unique grams accumulated`)
-      
-      // Flush to storage every 5 URLs to prevent memory buildup
-      if ((i + 1) % 5 === 0 || i === oneGramUrls.length - 1) {
-        const tempFile = `${outPrefix}/temp_1gram_${i}.json`
-        await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(oneGramAgg.entries())))
-        logger.info(`Flushed ${oneGramAgg.size} grams to ${tempFile}`)
-        oneGramAgg.clear() // Clear memory
-      }
-    }
+    const agg = new Map<string, number>()
+    await processUrlAndAccumulate(url, n, agg)
+    logger.info(`Completed ${url}, ${agg.size} unique grams found`)
     
-    // Merge 1-gram temporary files
-    logger.info(`Merging 1-gram temporary files...`)
-    const finalOneGramAgg = new Map<string, number>()
-    for (let i = 4; i < oneGramUrls.length; i += 5) {
-      try {
-        const tempFile = `${outPrefix}/temp_1gram_${i}.json`
-        const [tempData] = await storage.bucket().file(tempFile).download()
-        const entries = JSON.parse(tempData.toString()) as Array<[string, number]>
-        
-        for (const [gram, freq] of entries) {
-          finalOneGramAgg.set(gram, (finalOneGramAgg.get(gram) || 0) + freq)
-        }
-        
-        // Delete temporary file
-        await storage.bucket().file(tempFile).delete()
-        logger.info(`Merged 1-gram temp file ${i}, total unique grams: ${finalOneGramAgg.size}`)
-      } catch (e) {
-        logger.error(`Error merging 1-gram temp file ${i}:`, e instanceof Error ? e : new Error(String(e)))
-      }
-    }
-    
-    logger.info(`1-gram aggregation complete, ${finalOneGramAgg.size} unique grams found`)
-    const oneGramTop = filterAndRank(finalOneGramAgg, 1, 30000)
-    logger.info(`1-gram filtering complete, ${oneGramTop.length} top grams selected`)
-    await storage.bucket().file(`${outPrefix}/1gram_top.json`).save(JSON.stringify(oneGramTop))
-    logger.info(`1-gram data saved to Firebase Storage`)
-    
-    // Process 2-gram: first 10 shards (aa-aj)
-    const twoGramUrls = buildShardUrls(2).slice(0, 10) // First 10 URLs (aa-aj)
-    logger.info(`Processing 2-gram with ${twoGramUrls.length} URLs`)
-    
-    const twoGramAgg = new Map<string, number>()
-    for (let i = 0; i < twoGramUrls.length; i++) {
-      const url = twoGramUrls[i]
-      await processUrlAndAccumulate(url, 2, twoGramAgg)
-      logger.info(`After ${url}: ${twoGramAgg.size} unique grams accumulated`)
-      
-      // Flush to storage every 3 URLs to prevent memory buildup
-      if ((i + 1) % 3 === 0 || i === twoGramUrls.length - 1) {
-        const tempFile = `${outPrefix}/temp_2gram_${i}.json`
-        await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(twoGramAgg.entries())))
-        logger.info(`Flushed ${twoGramAgg.size} grams to ${tempFile}`)
-        twoGramAgg.clear() // Clear memory
-      }
-    }
-    
-    // Merge 2-gram temporary files
-    logger.info(`Merging 2-gram temporary files...`)
-    const finalTwoGramAgg = new Map<string, number>()
-    for (let i = 2; i < twoGramUrls.length; i += 3) {
-      try {
-        const tempFile = `${outPrefix}/temp_2gram_${i}.json`
-        const [tempData] = await storage.bucket().file(tempFile).download()
-        const entries = JSON.parse(tempData.toString()) as Array<[string, number]>
-        
-        for (const [gram, freq] of entries) {
-          finalTwoGramAgg.set(gram, (finalTwoGramAgg.get(gram) || 0) + freq)
-        }
-        
-        // Delete temporary file
-        await storage.bucket().file(tempFile).delete()
-        logger.info(`Merged 2-gram temp file ${i}, total unique grams: ${finalTwoGramAgg.size}`)
-      } catch (e) {
-        logger.error(`Error merging 2-gram temp file ${i}:`, e instanceof Error ? e : new Error(String(e)))
-      }
-    }
-    
-    logger.info(`2-gram aggregation complete, ${finalTwoGramAgg.size} unique grams found`)
-    const twoGramTop = filterAndRank(finalTwoGramAgg, 2, 50000)
-    logger.info(`2-gram filtering complete, ${twoGramTop.length} top grams selected`)
-    await storage.bucket().file(`${outPrefix}/2gram_top.json`).save(JSON.stringify(twoGramTop))
-    logger.info(`2-gram data saved to Firebase Storage`)
+    // Save individual URL results and return metadata for orchestrator
+    const shardId = url.split('/').pop()?.replace('.gz', '') || 'unknown'
+    const tempFile = `${outPrefix}/temp_${type}_${shardId}.json`
+    await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
+    logger.info(`Saved ${agg.size} grams to ${tempFile}`)
     
     try {
       const db = await getDb()
       await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() })
     } catch {}
     
-    logger.info('Google Ngram dataset prepared successfully (data instance)')
-    return NextResponse.json({ success: true })
+    logger.info('Shard processed successfully (data instance)')
+    return NextResponse.json({ success: true, type, shard: shardId, count: agg.size, path: tempFile })
   } catch (error) {
     logger.error('Google Ngram generation error (data instance):', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Failed to prepare Google Ngram dataset' }, { status: 500 })
