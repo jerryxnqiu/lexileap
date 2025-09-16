@@ -160,51 +160,97 @@ export async function POST() {
     const storage = await getStorage()
     const outPrefix = 'data/google-ngram'
 
-    // Process URLs one by one with periodic flushing to avoid memory buildup
-    const testUrls = buildShardUrls(1).slice(0, 3) // Process first 3 URLs (a, b, c)
-    logger.info(`Processing 1-gram with ${testUrls.length} URLs`)
+    // Process 1-gram: all letters (a-z)
+    const oneGramUrls = buildShardUrls(1) // All 26 URLs (a-z)
+    logger.info(`Processing 1-gram with ${oneGramUrls.length} URLs`)
     
-    const agg = new Map<string, number>()
-    for (let i = 0; i < testUrls.length; i++) {
-      const url = testUrls[i]
-      await processUrlAndAccumulate(url, 1, agg)
-      logger.info(`After ${url}: ${agg.size} unique grams accumulated`)
+    const oneGramAgg = new Map<string, number>()
+    for (let i = 0; i < oneGramUrls.length; i++) {
+      const url = oneGramUrls[i]
+      await processUrlAndAccumulate(url, 1, oneGramAgg)
+      logger.info(`After ${url}: ${oneGramAgg.size} unique grams accumulated`)
       
-      // Flush to storage every URL to prevent memory buildup
-      if (agg.size > 0) {
+      // Flush to storage every 5 URLs to prevent memory buildup
+      if ((i + 1) % 5 === 0 || i === oneGramUrls.length - 1) {
         const tempFile = `${outPrefix}/temp_1gram_${i}.json`
-        await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
-        logger.info(`Flushed ${agg.size} grams to ${tempFile}`)
-        agg.clear() // Clear memory
+        await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(oneGramAgg.entries())))
+        logger.info(`Flushed ${oneGramAgg.size} grams to ${tempFile}`)
+        oneGramAgg.clear() // Clear memory
       }
     }
     
-    // Merge all temporary files
-    logger.info(`Merging temporary files...`)
-    const finalAgg = new Map<string, number>()
-    for (let i = 0; i < testUrls.length; i++) {
+    // Merge 1-gram temporary files
+    logger.info(`Merging 1-gram temporary files...`)
+    const finalOneGramAgg = new Map<string, number>()
+    for (let i = 4; i < oneGramUrls.length; i += 5) {
       try {
         const tempFile = `${outPrefix}/temp_1gram_${i}.json`
         const [tempData] = await storage.bucket().file(tempFile).download()
         const entries = JSON.parse(tempData.toString()) as Array<[string, number]>
         
         for (const [gram, freq] of entries) {
-          finalAgg.set(gram, (finalAgg.get(gram) || 0) + freq)
+          finalOneGramAgg.set(gram, (finalOneGramAgg.get(gram) || 0) + freq)
         }
         
         // Delete temporary file
         await storage.bucket().file(tempFile).delete()
-        logger.info(`Merged temp file ${i}, total unique grams: ${finalAgg.size}`)
+        logger.info(`Merged 1-gram temp file ${i}, total unique grams: ${finalOneGramAgg.size}`)
       } catch (e) {
-        logger.error(`Error merging temp file ${i}:`, e instanceof Error ? e : new Error(String(e)))
+        logger.error(`Error merging 1-gram temp file ${i}:`, e instanceof Error ? e : new Error(String(e)))
       }
     }
     
-    logger.info(`1-gram aggregation complete, ${finalAgg.size} unique grams found`)
-    const top = filterAndRank(finalAgg, 1, 20000)
-    logger.info(`1-gram filtering complete, ${top.length} top grams selected`)
-    await storage.bucket().file(`${outPrefix}/1gram_top.json`).save(JSON.stringify(top))
+    logger.info(`1-gram aggregation complete, ${finalOneGramAgg.size} unique grams found`)
+    const oneGramTop = filterAndRank(finalOneGramAgg, 1, 30000)
+    logger.info(`1-gram filtering complete, ${oneGramTop.length} top grams selected`)
+    await storage.bucket().file(`${outPrefix}/1gram_top.json`).save(JSON.stringify(oneGramTop))
     logger.info(`1-gram data saved to Firebase Storage`)
+    
+    // Process 2-gram: first 10 shards (aa-aj)
+    const twoGramUrls = buildShardUrls(2).slice(0, 10) // First 10 URLs (aa-aj)
+    logger.info(`Processing 2-gram with ${twoGramUrls.length} URLs`)
+    
+    const twoGramAgg = new Map<string, number>()
+    for (let i = 0; i < twoGramUrls.length; i++) {
+      const url = twoGramUrls[i]
+      await processUrlAndAccumulate(url, 2, twoGramAgg)
+      logger.info(`After ${url}: ${twoGramAgg.size} unique grams accumulated`)
+      
+      // Flush to storage every 3 URLs to prevent memory buildup
+      if ((i + 1) % 3 === 0 || i === twoGramUrls.length - 1) {
+        const tempFile = `${outPrefix}/temp_2gram_${i}.json`
+        await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(twoGramAgg.entries())))
+        logger.info(`Flushed ${twoGramAgg.size} grams to ${tempFile}`)
+        twoGramAgg.clear() // Clear memory
+      }
+    }
+    
+    // Merge 2-gram temporary files
+    logger.info(`Merging 2-gram temporary files...`)
+    const finalTwoGramAgg = new Map<string, number>()
+    for (let i = 2; i < twoGramUrls.length; i += 3) {
+      try {
+        const tempFile = `${outPrefix}/temp_2gram_${i}.json`
+        const [tempData] = await storage.bucket().file(tempFile).download()
+        const entries = JSON.parse(tempData.toString()) as Array<[string, number]>
+        
+        for (const [gram, freq] of entries) {
+          finalTwoGramAgg.set(gram, (finalTwoGramAgg.get(gram) || 0) + freq)
+        }
+        
+        // Delete temporary file
+        await storage.bucket().file(tempFile).delete()
+        logger.info(`Merged 2-gram temp file ${i}, total unique grams: ${finalTwoGramAgg.size}`)
+      } catch (e) {
+        logger.error(`Error merging 2-gram temp file ${i}:`, e instanceof Error ? e : new Error(String(e)))
+      }
+    }
+    
+    logger.info(`2-gram aggregation complete, ${finalTwoGramAgg.size} unique grams found`)
+    const twoGramTop = filterAndRank(finalTwoGramAgg, 2, 50000)
+    logger.info(`2-gram filtering complete, ${twoGramTop.length} top grams selected`)
+    await storage.bucket().file(`${outPrefix}/2gram_top.json`).save(JSON.stringify(twoGramTop))
+    logger.info(`2-gram data saved to Firebase Storage`)
     
     try {
       const db = await getDb()
