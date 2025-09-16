@@ -9,8 +9,8 @@ function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 
 // Control memory by flushing partial aggregates periodically
-const FLUSH_LINE_INTERVAL = 5_000_000
-const FLUSH_SIZE_LIMIT = 300_000
+const FLUSH_LINE_INTERVAL = 1_000_000
+const FLUSH_SIZE_LIMIT = 100_000
 
 // NOTE: This function is used to process a single URL and accumulate the results.
 // only keep words above frequency threshold to manage memory
