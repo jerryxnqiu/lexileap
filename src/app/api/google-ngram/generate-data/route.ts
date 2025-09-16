@@ -13,7 +13,7 @@ function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && toke
 function hasContentWord(tokens: string[]): boolean { return tokens.some(t=>!STOPWORDS.has(t.toLowerCase())) }
 
 
-async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, number>): Promise<void> {
+async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, number>, minFrequency: number = 5000): Promise<void> {
   try {
     logger.info(`Processing URL: ${url}`)
     const res = await fetch(url, { cache: 'no-store' })
@@ -66,8 +66,16 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
             if (tokens.length !== n) continue
             if (!isCleanGram(tokens)) continue
             const prev = agg.get(gram) ?? 0
-            agg.set(gram, prev + match)
-            processedCount++
+            const newTotal = prev + match
+            
+            // Only keep words above frequency threshold to manage memory
+            if (newTotal >= minFrequency) {
+              agg.set(gram, newTotal)
+              processedCount++
+            } else if (prev > 0) {
+              // Remove words that fall below threshold
+              agg.delete(gram)
+            }
           }
         }
       }
@@ -91,7 +99,7 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
       }
     }
     
-    logger.info(`Completed ${url}, processed ${lineCount} lines, ${processedCount} valid grams, ${agg.size} unique grams total`)
+    logger.info(`Completed ${url}, processed ${lineCount} lines, ${processedCount} valid grams, ${agg.size} unique grams total (min freq: ${minFrequency})`)
     
     // Force garbage collection hint - the raw data is now out of scope
     if (global.gc) {
@@ -152,18 +160,48 @@ export async function POST() {
     const storage = await getStorage()
     const outPrefix = 'data/google-ngram'
 
-    // Process URLs one by one, accumulating results and freeing memory after each
+    // Process URLs one by one with periodic flushing to avoid memory buildup
     const testUrls = buildShardUrls(1).slice(0, 3) // Process first 3 URLs (a, b, c)
     logger.info(`Processing 1-gram with ${testUrls.length} URLs`)
     
     const agg = new Map<string, number>()
-    for (const url of testUrls) {
+    for (let i = 0; i < testUrls.length; i++) {
+      const url = testUrls[i]
       await processUrlAndAccumulate(url, 1, agg)
       logger.info(`After ${url}: ${agg.size} unique grams accumulated`)
+      
+      // Flush to storage every URL to prevent memory buildup
+      if (agg.size > 0) {
+        const tempFile = `${outPrefix}/temp_1gram_${i}.json`
+        await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
+        logger.info(`Flushed ${agg.size} grams to ${tempFile}`)
+        agg.clear() // Clear memory
+      }
     }
     
-    logger.info(`1-gram aggregation complete, ${agg.size} unique grams found`)
-    const top = filterAndRank(agg, 1, 20000)
+    // Merge all temporary files
+    logger.info(`Merging temporary files...`)
+    const finalAgg = new Map<string, number>()
+    for (let i = 0; i < testUrls.length; i++) {
+      try {
+        const tempFile = `${outPrefix}/temp_1gram_${i}.json`
+        const [tempData] = await storage.bucket().file(tempFile).download()
+        const entries = JSON.parse(tempData.toString()) as Array<[string, number]>
+        
+        for (const [gram, freq] of entries) {
+          finalAgg.set(gram, (finalAgg.get(gram) || 0) + freq)
+        }
+        
+        // Delete temporary file
+        await storage.bucket().file(tempFile).delete()
+        logger.info(`Merged temp file ${i}, total unique grams: ${finalAgg.size}`)
+      } catch (e) {
+        logger.error(`Error merging temp file ${i}:`, e instanceof Error ? e : new Error(String(e)))
+      }
+    }
+    
+    logger.info(`1-gram aggregation complete, ${finalAgg.size} unique grams found`)
+    const top = filterAndRank(finalAgg, 1, 20000)
     logger.info(`1-gram filtering complete, ${top.length} top grams selected`)
     await storage.bucket().file(`${outPrefix}/1gram_top.json`).save(JSON.stringify(top))
     logger.info(`1-gram data saved to Firebase Storage`)
