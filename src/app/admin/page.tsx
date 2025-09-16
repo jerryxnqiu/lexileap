@@ -158,7 +158,7 @@ export default function AdminPage() {
             <button
               onClick={async () => {
                 try {
-                  const res = await fetch('/api/google-ngram/generate-data', {
+                  const res = await fetch('/api/google-ngram/generate', {
                     method: 'POST'
                   })
                   if (!res.ok) {
