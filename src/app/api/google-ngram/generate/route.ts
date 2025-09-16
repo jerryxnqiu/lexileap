@@ -51,9 +51,9 @@ export async function POST() {
     ]
     
     // Helper to process with limited concurrency so we get progress logs
-    const WORKER_CONCURRENCY = 2
-    const DISPATCH_BASE_DELAY_MS = 500
-    const DISPATCH_JITTER_MS = 500
+    const WORKER_CONCURRENCY = 1
+    const DISPATCH_BASE_DELAY_MS = 800
+    const DISPATCH_JITTER_MS = 600
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 

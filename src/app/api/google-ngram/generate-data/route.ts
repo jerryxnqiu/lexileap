@@ -12,6 +12,10 @@ function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 function hasContentWord(tokens: string[]): boolean { return tokens.some(t=>!STOPWORDS.has(t.toLowerCase())) }
 
+// Control memory by flushing partial aggregates periodically
+const FLUSH_LINE_INTERVAL = 5_000_000
+const FLUSH_SIZE_LIMIT = 300_000
+
 // NOTE: This function is used to process a single URL and accumulate the results.
 // only keep words above frequency threshold to manage memory
 async function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)) }
@@ -43,13 +47,20 @@ async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 5): P
   }
 }
 
-async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, number>, minFrequency: number = 5000): Promise<void> {
+async function processShardWithFlush(
+  storage: any,
+  outPrefix: string,
+  type: string,
+  shardId: string,
+  url: string,
+  n: number
+): Promise<{ parts: number; totalLines: number }> {
   try {
     logger.info(`Processing URL: ${url}`)
     const res = await fetchWithRetry(url, { cache: 'no-store' })
     if (!res.ok || !res.body) {
       logger.error(`Fetch failed for ${url}: ${res.status} ${res.statusText}`)
-      return
+      return { parts: 0, totalLines: 0 }
     }
     
     // Handle gzip (.gz) sources via Web Streams DecompressionStream when needed
@@ -69,7 +80,17 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
     
     let buf = ''
     let lineCount = 0
-    let processedCount = 0
+    let partIndex = 0
+    const agg = new Map<string, number>()
+
+    const flushPart = async () => {
+      if (agg.size === 0) return
+      const tempFile = `${outPrefix}/temp_${type}_${shardId}_part${partIndex++}.json`
+      await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
+      logger.info(`Flushed part ${partIndex} for ${type}/${shardId}: ${agg.size} grams -> ${tempFile}`)
+      agg.clear()
+      if (global.gc) global.gc()
+    }
     
     while (true) {
       const { done, value } = await reader.read()
@@ -97,12 +118,10 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
             if (tokens.length !== n) continue
             if (!isCleanGram(tokens)) continue
             const prev = agg.get(gram) ?? 0
-            const newTotal = prev + match
-            
-            // Accumulate always; count once when first crossing minFrequency
-            agg.set(gram, newTotal)
-            if (prev < minFrequency && newTotal >= minFrequency) {
-              processedCount++
+            agg.set(gram, prev + match)
+
+            if ((lineCount % FLUSH_LINE_INTERVAL) === 0 || agg.size > FLUSH_SIZE_LIMIT) {
+              await flushPart()
             }
           }
         }
@@ -120,22 +139,25 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
             const tokens = gram.split(' ')
             if (tokens.length === n && isCleanGram(tokens)) {
               agg.set(gram, (agg.get(gram) ?? 0) + match)
-              processedCount++
             }
           }
         }
       }
     }
     
-    logger.info(`Completed ${url}, processed ${lineCount} lines, ${processedCount} valid grams, ${agg.size} unique grams total (min freq: ${minFrequency})`)
+    // Final flush
+    await flushPart()
+
+    logger.info(`Completed ${url}, processed ${lineCount} lines, flushed ${partIndex} parts for ${type}/${shardId}`)
     
     // Force garbage collection hint - the raw data is now out of scope
     if (global.gc) {
       global.gc()
     }
-    
+    return { parts: partIndex, totalLines: lineCount }
   } catch (e) {
     logger.error('Process URL error:', e instanceof Error ? e : new Error(String(e)))
+    return { parts: 0, totalLines: 0 }
   }
 }
 
@@ -164,18 +186,10 @@ export async function POST(request: Request) {
     const outPrefix = 'data/google-ngram'
     const n = parseInt(type.replace('gram', '')) // Extract n from '1gram', '2gram', etc.
 
-    // Process single URL
+    // Process single URL with periodic flushes (no threshold here)
     logger.info(`Processing ${type} URL: ${url}`)
-    
-    const agg = new Map<string, number>()
-    await processUrlAndAccumulate(url, n, agg)
-    logger.info(`Completed ${url}, ${agg.size} unique grams found`)
-    
-    // Save individual URL results and return metadata for orchestrator
     const shardId = url.split('/').pop()?.replace('.gz', '') || 'unknown'
-    const tempFile = `${outPrefix}/temp_${type}_${shardId}.json`
-    await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
-    logger.info(`Saved ${agg.size} grams to ${tempFile}`)
+    const { parts, totalLines } = await processShardWithFlush(storage, outPrefix, type, shardId, url, n)
     
     try {
       const db = await getDb()
@@ -183,7 +197,7 @@ export async function POST(request: Request) {
     } catch {}
     
     logger.info('Shard processed successfully (data instance)')
-    return NextResponse.json({ success: true, type, shard: shardId, count: agg.size, path: tempFile })
+    return NextResponse.json({ success: true, type, shard: shardId, parts, totalLines })
   } catch (error) {
     logger.error('Google Ngram generation error (data instance):', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Failed to prepare Google Ngram dataset' }, { status: 500 })
