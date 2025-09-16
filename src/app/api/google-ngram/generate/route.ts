@@ -52,6 +52,11 @@ export async function POST() {
     
     // Helper to process with limited concurrency so we get progress logs
     const WORKER_CONCURRENCY = 2
+    const DISPATCH_BASE_DELAY_MS = 500
+    const DISPATCH_JITTER_MS = 500
+
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
     const runWithConcurrency = async (type: string, urls: string[], concurrency = WORKER_CONCURRENCY) => {
       logger.info(`Starting ${type} processing with ${urls.length} URLs (concurrency=${concurrency})`)
       let index = 0
@@ -60,6 +65,8 @@ export async function POST() {
         if (current >= urls.length) return
         const url = urls[current]
         try {
+          // Guard timer to avoid upstream 429s
+          await sleep(DISPATCH_BASE_DELAY_MS + Math.floor(Math.random() * DISPATCH_JITTER_MS))
           const response = await fetch(`${base}/api/google-ngram/generate-data`, {
             method: 'POST',
             headers: { ...headers, 'Content-Type': 'application/json' },

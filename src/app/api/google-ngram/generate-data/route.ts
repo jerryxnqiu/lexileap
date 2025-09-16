@@ -14,10 +14,39 @@ function hasContentWord(tokens: string[]): boolean { return tokens.some(t=>!STOP
 
 // NOTE: This function is used to process a single URL and accumulate the results.
 // only keep words above frequency threshold to manage memory
+async function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)) }
+
+async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 5): Promise<Response> {
+  let attempt = 0
+  let delayMs = 1000
+  while (true) {
+    try {
+      const res = await fetch(url, init)
+      if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
+        if (attempt < maxRetries) {
+          await sleep(delayMs + Math.floor(Math.random()*250))
+          attempt++
+          delayMs *= 2
+          continue
+        }
+      }
+      return res
+    } catch (e) {
+      if (attempt < maxRetries) {
+        await sleep(delayMs + Math.floor(Math.random()*250))
+        attempt++
+        delayMs *= 2
+        continue
+      }
+      throw e
+    }
+  }
+}
+
 async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, number>, minFrequency: number = 5000): Promise<void> {
   try {
     logger.info(`Processing URL: ${url}`)
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await fetchWithRetry(url, { cache: 'no-store' })
     if (!res.ok || !res.body) {
       logger.error(`Fetch failed for ${url}: ${res.status} ${res.statusText}`)
       return
@@ -37,6 +66,7 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
     
     const reader = stream.getReader()
     const decoder = new TextDecoder('utf-8')
+    
     let buf = ''
     let lineCount = 0
     let processedCount = 0
@@ -69,13 +99,10 @@ async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, 
             const prev = agg.get(gram) ?? 0
             const newTotal = prev + match
             
-            // Only keep words above frequency threshold to manage memory
-            if (newTotal >= minFrequency) {
-              agg.set(gram, newTotal)
+            // Accumulate always; count once when first crossing minFrequency
+            agg.set(gram, newTotal)
+            if (prev < minFrequency && newTotal >= minFrequency) {
               processedCount++
-            } else if (prev > 0) {
-              // Remove words that fall below threshold
-              agg.delete(gram)
             }
           }
         }
