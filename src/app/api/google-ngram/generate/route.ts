@@ -50,41 +50,44 @@ export async function POST() {
       { type: '5gram', urls: buildShardUrls(5) }
     ]
     
-    // Process all n-gram types sequentially
-    for (const config of ngramConfigs) {
-      logger.info(`Starting ${config.type} processing with ${config.urls.length} URLs`)
-      
-      for (const url of config.urls) {
-        fetch(`${base}/api/google-ngram/generate-data`, { 
-          method: 'POST',
-          headers: {
-            ...headers,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            type: config.type,
-            url: url 
-          }),
-          cache: 'no-store'
-        }).then(async (response) => {
+    // Helper to process with limited concurrency so we get progress logs
+    const WORKER_CONCURRENCY = 2
+    const runWithConcurrency = async (type: string, urls: string[], concurrency = WORKER_CONCURRENCY) => {
+      logger.info(`Starting ${type} processing with ${urls.length} URLs (concurrency=${concurrency})`)
+      let index = 0
+      const runNext = async (): Promise<void> => {
+        const current = index++
+        if (current >= urls.length) return
+        const url = urls[current]
+        try {
+          const response = await fetch(`${base}/api/google-ngram/generate-data`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, url }),
+            cache: 'no-store'
+          })
           if (!response.ok) {
             const errorText = await response.text()
-            logger.error(`${config.type} URL processing error for ${url}:`, new Error(`Status ${response.status}: ${errorText}`))
+            logger.error(`${type} URL processing error for ${url}:`, new Error(`Status ${response.status}: ${errorText}`))
           } else {
-            logger.info(`${config.type} URL processed successfully: ${url}`)
+            logger.info(`${type} URL processed successfully: ${url}`)
           }
-        }).catch((error) => {
-          logger.error(`${config.type} URL processing failed for ${url}:`, error instanceof Error ? error : new Error(String(error)))
-        })
+        } catch (error) {
+          logger.error(`${type} URL processing failed for ${url}:`, error instanceof Error ? error : new Error(String(error)))
+        }
+        await runNext()
       }
+      await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, () => runNext()))
+      logger.info(`Completed ${type} dispatch of ${urls.length} URLs`)
     }
 
-    // Return immediately to frontend
-    logger.info('Google Ngram generation job started in background')
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Google Ngram generation started in background. Check logs for progress.' 
-    })
+    // Process all n-gram types sequentially with throttled concurrency
+    for (const config of ngramConfigs) {
+      await runWithConcurrency(config.type, config.urls, WORKER_CONCURRENCY)
+    }
+
+    logger.info('All n-gram dispatch complete. You can now call /api/google-ngram/merge to finalize.')
+    return NextResponse.json({ success: true })
   } catch (error) {
     logger.error('Generate proxy error:', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
