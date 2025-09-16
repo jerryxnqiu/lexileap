@@ -13,75 +13,94 @@ function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && toke
 function hasContentWord(tokens: string[]): boolean { return tokens.some(t=>!STOPWORDS.has(t.toLowerCase())) }
 
 
-async function aggregateFromUrls(urls: string[], n: number): Promise<Map<string, number>> {
-  const agg = new Map<string, number>()
-  for (const url of urls) {
+async function processUrlAndAccumulate(url: string, n: number, agg: Map<string, number>): Promise<void> {
+  try {
+    logger.info(`Processing URL: ${url}`)
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok || !res.body) {
+      logger.error(`Fetch failed for ${url}: ${res.status} ${res.statusText}`)
+      return
+    }
+    
+    // Handle gzip (.gz) sources via Web Streams DecompressionStream when needed
+    let stream: ReadableStream<Uint8Array> = res.body
+    const contentEncoding = res.headers.get('content-encoding') || ''
+    const contentType = res.headers.get('content-type') || ''
+    const isGzip = url.endsWith('.gz') || /gzip/i.test(contentEncoding) || /application\/(x-)?gzip/i.test(contentType)
     try {
-      const res = await fetch(url, { cache: 'no-store' })
-      if (!res.ok || !res.body) {
-        logger.error(`Fetch failed for ${url}: ${res.status} ${res.statusText}`)
-        continue
+      if (isGzip && typeof DecompressionStream !== 'undefined') {
+        // @ts-expect-error - DecompressionStream type compatibility issue with Node.js streams
+        stream = stream.pipeThrough(new DecompressionStream('gzip'))
       }
-      // Handle gzip (.gz) sources via Web Streams DecompressionStream when needed
-      let stream: ReadableStream<Uint8Array> = res.body
-      const contentEncoding = res.headers.get('content-encoding') || ''
-      const contentType = res.headers.get('content-type') || ''
-      const isGzip = url.endsWith('.gz') || /gzip/i.test(contentEncoding) || /application\/(x-)?gzip/i.test(contentType)
-      try {
-        if (isGzip && typeof DecompressionStream !== 'undefined') {
-          // @ts-expect-error - DecompressionStream type compatibility issue with Node.js streams
-          stream = stream.pipeThrough(new DecompressionStream('gzip'))
-        }
-      } catch {}
-      const reader = stream.getReader()
-      const decoder = new TextDecoder('utf-8')
-      let buf = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value) {
-          buf += decoder.decode(value, { stream: true })
-          let idx: number
-          while ((idx = buf.indexOf('\n')) >= 0) {
-            const line = buf.slice(0, idx)
-            buf = buf.slice(idx + 1)
-            const s = line.trim(); if (!s) continue
-            // TSV format: ngram<TAB>year<TAB>match_count<TAB>volume_count
-            const parts = s.split('\t')
-            if (parts.length >= 3) {
-              const gram = parts[0]
-              const match = Number(parts[2])
-              if (!Number.isFinite(match)) continue
-              const tokens = gram.split(' ')
-              if (tokens.length !== n) continue
-              if (!isCleanGram(tokens)) continue
-              const prev = agg.get(gram) ?? 0
-              agg.set(gram, prev + match)
-            }
+    } catch {}
+    
+    const reader = stream.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buf = ''
+    let lineCount = 0
+    let processedCount = 0
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) {
+        buf += decoder.decode(value, { stream: true })
+        let idx: number
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx)
+          buf = buf.slice(idx + 1)
+          lineCount++
+          
+          if (lineCount % 50000 === 0) {
+            logger.info(`Processed ${lineCount} lines from ${url}`)
           }
-        }
-      }
-      if (buf.length) {
-        const s = buf.trim()
-        if (s) {
+          
+          const s = line.trim(); if (!s) continue
+          // TSV format: ngram<TAB>year<TAB>match_count<TAB>volume_count
           const parts = s.split('\t')
           if (parts.length >= 3) {
             const gram = parts[0]
             const match = Number(parts[2])
-            if (Number.isFinite(match)) {
-              const tokens = gram.split(' ')
-              if (tokens.length === n && isCleanGram(tokens)) {
-                agg.set(gram, (agg.get(gram) ?? 0) + match)
-              }
+            if (!Number.isFinite(match)) continue
+            const tokens = gram.split(' ')
+            if (tokens.length !== n) continue
+            if (!isCleanGram(tokens)) continue
+            const prev = agg.get(gram) ?? 0
+            agg.set(gram, prev + match)
+            processedCount++
+          }
+        }
+      }
+    }
+    
+    if (buf.length) {
+      const s = buf.trim()
+      if (s) {
+        const parts = s.split('\t')
+        if (parts.length >= 3) {
+          const gram = parts[0]
+          const match = Number(parts[2])
+          if (Number.isFinite(match)) {
+            const tokens = gram.split(' ')
+            if (tokens.length === n && isCleanGram(tokens)) {
+              agg.set(gram, (agg.get(gram) ?? 0) + match)
+              processedCount++
             }
           }
         }
       }
-    } catch (e) {
-      logger.error('Aggregate URL error:', e instanceof Error ? e : new Error(String(e)))
     }
+    
+    logger.info(`Completed ${url}, processed ${lineCount} lines, ${processedCount} valid grams, ${agg.size} unique grams total`)
+    
+    // Force garbage collection hint - the raw data is now out of scope
+    if (global.gc) {
+      global.gc()
+    }
+    
+  } catch (e) {
+    logger.error('Process URL error:', e instanceof Error ? e : new Error(String(e)))
   }
-  return agg
 }
 
 
@@ -133,20 +152,21 @@ export async function POST() {
     const storage = await getStorage()
     const outPrefix = 'data/google-ngram'
 
-    // Generate URLs for all n-grams (1-5)
-    const cfgs: Array<{ urls: string[]; n: number; top: number }> = [
-      { urls: buildShardUrls(1), n: 1, top: 20000 },  // 1-gram: top 20k
-      { urls: buildShardUrls(2), n: 2, top: 100000 }, // 2-gram: top 100k
-      { urls: buildShardUrls(3), n: 3, top: 100000 }, // 3-gram: top 100k
-      { urls: buildShardUrls(4), n: 4, top: 100000 }, // 4-gram: top 100k
-      { urls: buildShardUrls(5), n: 5, top: 100000 }  // 5-gram: top 100k
-    ]
+    // Process URLs one by one, accumulating results and freeing memory after each
+    const testUrls = buildShardUrls(1).slice(0, 3) // Process first 3 URLs (a, b, c)
+    logger.info(`Processing 1-gram with ${testUrls.length} URLs`)
     
-    for (const c of cfgs) {
-      const agg = await aggregateFromUrls(c.urls, c.n)
-      const top = filterAndRank(agg, c.n, c.top)
-      await storage.bucket().file(`${outPrefix}/${c.n}gram_top.json`).save(JSON.stringify(top))
+    const agg = new Map<string, number>()
+    for (const url of testUrls) {
+      await processUrlAndAccumulate(url, 1, agg)
+      logger.info(`After ${url}: ${agg.size} unique grams accumulated`)
     }
+    
+    logger.info(`1-gram aggregation complete, ${agg.size} unique grams found`)
+    const top = filterAndRank(agg, 1, 20000)
+    logger.info(`1-gram filtering complete, ${top.length} top grams selected`)
+    await storage.bucket().file(`${outPrefix}/1gram_top.json`).save(JSON.stringify(top))
+    logger.info(`1-gram data saved to Firebase Storage`)
     
     try {
       const db = await getDb()
