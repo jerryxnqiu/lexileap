@@ -53,8 +53,8 @@ export async function POST() {
         ]
 
         const WORKER_CONCURRENCY = 1
-        const DISPATCH_BASE_DELAY_MS = 800
-        const DISPATCH_JITTER_MS = 600
+        const DISPATCH_BASE_DELAY_MS = 250
+        const DISPATCH_JITTER_MS = 250
         const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
         const runWithConcurrency = async (type: string, urls: string[], concurrency = WORKER_CONCURRENCY) => {
