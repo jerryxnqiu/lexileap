@@ -11,6 +11,36 @@ function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && toke
 // Control memory by flushing partial aggregates via per-letter buckets
 const BUCKET_SIZE_LIMIT = 25_000
 
+// Build shard URLs for Google Ngram
+function buildShardUrls(n: 1 | 2 | 3 | 4 | 5): string[] {
+  const base = `http://storage.googleapis.com/books/ngrams/books/googlebooks-eng-all-${n}gram-20120701-`
+  const letters = 'abcdefghijklmnopqrstuvwxyz'
+  const urls: string[] = []
+  if (n === 1) {
+    for (let i = 0; i < letters.length; i++) urls.push(`${base}${letters[i]}.gz`)
+  } else {
+    for (let i = 0; i < letters.length; i++) {
+      for (let j = 0; j < letters.length; j++) {
+        urls.push(`${base}${letters[i]}${letters[j]}.gz`)
+      }
+    }
+  }
+  return urls
+}
+
+// Final ranking util used at merge step
+function filterAndRank(map: Map<string, number>, n: number, topN: number): Array<{ gram: string; freq: number }> {
+  const items: Array<{ gram: string; freq: number }> = []
+  for (const [gram, freq] of map.entries()) {
+    const tokens = gram.split(' ')
+    if (tokens.length !== n) continue
+    if (!isCleanGram(tokens)) continue
+    items.push({ gram, freq })
+  }
+  items.sort((a,b)=>b.freq-a.freq)
+  return items.slice(0, topN)
+}
+
 // NOTE: This function is used to process a single URL and accumulate the results.
 // only keep words above frequency threshold to manage memory
 async function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)) }
@@ -180,40 +210,106 @@ async function processShardWithFlush(
 
 export async function POST(request: Request) {
   try {
-    // Get single URL from request body
-    let type: string
-    let url: string
-    
-    try {
-      const body = await request.json()
-      type = body.type
-      url = body.url
-      logger.info(`Received ${type} URL: ${url}`)
-    } catch {
-      logger.error('Failed to parse request body - type and url must be provided')
-      return NextResponse.json({ error: 'type and url must be provided in request body' }, { status: 400 })
-    }
-    
-    if (!type || !url) {
-      logger.error('Missing required type or url in request body')
-      return NextResponse.json({ error: 'type and url are required' }, { status: 400 })
-    }
-    
+    // Parse body; if missing or runAll=true, start full job in background
+    let body: any = null
+    try { body = await request.json() } catch {}
+
     const storage = await getStorage()
     const outPrefix = 'data/google-ngram'
-    const n = parseInt(type.replace('gram', '')) // Extract n from '1gram', '2gram', etc.
 
-    // Process single URL with periodic flushes (no threshold here)
-    logger.info(`Processing ${type} URL: ${url}`)
+    const runAll = !body || body.runAll === true
+
+    if (runAll) {
+      // Long-running, resumable processing with checkpointing and a time budget
+      const db = await getDb()
+      const checkpoints = db.collection('ngram_shards')
+      const DEADLINE_MS = 55 * 60 * 1000 // ~55 minutes budget
+      const startTime = Date.now()
+
+      let processed = 0
+      let skipped = 0
+      let lastType: string | null = null
+      let lastShard: string | null = null
+
+      const types = ['1gram','2gram','3gram','4gram','5gram'] as const
+
+      const isDone = async (type: string, shardId: string): Promise<boolean> => {
+        const doc = await checkpoints.doc(`${type}_${shardId}`).get()
+        return doc.exists && doc.get('status') === 'done'
+      }
+
+      const markDone = async (type: string, shardId: string, url: string) => {
+        await checkpoints.doc(`${type}_${shardId}`).set({ status: 'done', url, updatedAt: new Date() })
+      }
+
+      const cleanShardTemps = async (type: string, shardId: string) => {
+        const [oldTemps] = await storage.bucket().getFiles({ prefix: `${outPrefix}/temp_${type}_${shardId}_` })
+        for (const f of oldTemps) { try { await f.delete() } catch {} }
+      }
+
+      for (const t of types) {
+        const n = parseInt(t.replace('gram',''), 10) as 1|2|3|4|5
+        const urls = buildShardUrls(n)
+        logger.info(`(worker) Starting ${t} with ${urls.length} urls (resumable)`)      
+        for (const url of urls) {
+          if (Date.now() - startTime > DEADLINE_MS) {
+            logger.info('(worker) Time budget reached, returning progress')
+            return NextResponse.json({ started: true, processed, skipped, lastType, lastShard, message: 'Partial progress, call again to resume' })
+          }
+          const shardId = url.split('/').pop()?.replace('.gz','') || 'unknown'
+          lastType = t
+          lastShard = shardId
+          if (await isDone(t, shardId)) {
+            skipped++
+            continue
+          }
+          // Remove any previous partial temps to avoid double counting
+          await cleanShardTemps(t, shardId)
+          await processShardWithFlush(storage, outPrefix, t, shardId, url, n)
+          await markDone(t, shardId, url)
+          processed++
+        }
+      }
+
+      // Merge step (only when all shards done)
+      const topCounts: Record<string, number> = { '1gram': 30000, '2gram': 10000, '3gram': 10000, '4gram': 10000, '5gram': 10000 }
+      for (const t of ['1gram','2gram','3gram','4gram','5gram']) {
+        const n = parseInt(t.replace('gram',''), 10)
+        const [files] = await storage.bucket().getFiles({ prefix: `${outPrefix}/temp_${t}_` })
+        logger.info(`(worker) Merging ${files.length} files for ${t}`)
+        const agg = new Map<string, number>()
+        for (const f of files) {
+          try {
+            const [data] = await f.download()
+            const entries = JSON.parse(data.toString()) as Array<[string, number]>
+            for (const [gram, freq] of entries) {
+              agg.set(gram, (agg.get(gram) || 0) + freq)
+            }
+          } catch (e) {
+            logger.error(`(worker) Failed reading ${f.name}:`, e instanceof Error ? e : new Error(String(e)))
+          }
+        }
+        const top = filterAndRank(agg, n, topCounts[t])
+        await storage.bucket().file(`${outPrefix}/${t}_top.json`).save(JSON.stringify(top))
+        for (const f of files) { try { await f.delete() } catch {} }
+        logger.info(`(worker) Wrote ${t}_top.json (${top.length}) and cleaned temps`)
+      }
+
+      try { await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() }) } catch {}
+      logger.info('(worker) Google Ngram full job completed (resumable)')
+      return NextResponse.json({ success: true, processed, skipped })
+    }
+
+    // Fallback: single-URL processing path (kept for direct calls)
+    const type = body?.type as string | undefined
+    const url = body?.url as string | undefined
+    if (!type || !url) {
+      return NextResponse.json({ error: 'Provide { type, url } or { runAll: true }' }, { status: 400 })
+    }
+    const n = parseInt(type.replace('gram',''), 10)
     const shardId = url.split('/').pop()?.replace('.gz', '') || 'unknown'
     const { parts, totalLines } = await processShardWithFlush(storage, outPrefix, type, shardId, url, n)
-    
-    try {
-      const db = await getDb()
-      await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() })
-    } catch {}
-    
-    logger.info('Shard processed successfully (data instance)')
+    try { const db = await getDb(); await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() }) } catch {}
     return NextResponse.json({ success: true, type, shard: shardId, parts, totalLines })
   } catch (error) {
     logger.error('Google Ngram generation error (data instance):', error instanceof Error ? error : new Error(String(error)))
