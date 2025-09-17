@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic'
 function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 
-// Control memory by flushing partial aggregates via per-letter buckets
-const BUCKET_SIZE_LIMIT = 25_000
+// Control memory by flushing partial aggregates at a fixed size
+const AGG_SIZE_LIMIT = 25_000
 
 // Build shard URLs for Google Ngram
 function buildShardUrls(n: 1 | 2 | 3 | 4 | 5): string[] {
@@ -106,24 +106,16 @@ async function processShardWithFlush(
     let buf = ''
     let lineCount = 0
     let partIndex = 0
-    // Use per-letter buckets to keep memory usage even lower
-    const buckets = new Map<string, Map<string, number>>()
+    // Single aggregate map; flush when it grows beyond the limit
+    const agg = new Map<string, number>()
 
-    const flushBucket = async (bucketKey: string, bucket: Map<string, number>) => {
-      if (bucket.size === 0) return
-      const tempFile = `${outPrefix}/temp_${type}_${shardId}_${bucketKey}_part${partIndex++}.json`
-      await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(bucket.entries())))
-      logger.info(`Flushed bucket ${bucketKey} part ${partIndex} for ${type}/${shardId}: ${bucket.size} grams -> ${tempFile}`)
-      bucket.clear()
+    const flushAgg = async () => {
+      if (agg.size === 0) return
+      const tempFile = `${outPrefix}/temp_${type}_${shardId}_part${partIndex++}.json`
+      await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
+      logger.info(`Flushed part ${partIndex} for ${type}/${shardId}: ${agg.size} grams -> ${tempFile}`)
+      agg.clear()
       if (global.gc) global.gc()
-    }
-
-    const flushAllBuckets = async () => {
-      for (const [bucketKey, bucket] of buckets.entries()) {
-        if (bucket.size > 0) {
-          await flushBucket(bucketKey, bucket)
-        }
-      }
     }
     
     while (true) {
@@ -152,18 +144,11 @@ async function processShardWithFlush(
             if (tokens.length !== n) continue
             if (!isCleanGram(tokens)) continue
             
-            // Use first letter as bucket key to distribute memory usage
-            const bucketKey = gram.charAt(0).toLowerCase()
-            if (!buckets.has(bucketKey)) {
-              buckets.set(bucketKey, new Map<string, number>())
-            }
-            const bucket = buckets.get(bucketKey)!
-            const prev = bucket.get(gram) ?? 0
-            bucket.set(gram, prev + match)
-
-            // Flush individual buckets when they get too large
-            if (bucket.size > BUCKET_SIZE_LIMIT) {
-              await flushBucket(bucketKey, bucket)
+            // Add to aggregate, flush when large
+            const prev = agg.get(gram) ?? 0
+            agg.set(gram, prev + match)
+            if (agg.size > AGG_SIZE_LIMIT) {
+              await flushAgg()
             }
           }
         }
@@ -180,20 +165,15 @@ async function processShardWithFlush(
           if (Number.isFinite(match)) {
             const tokens = gram.split(' ')
             if (tokens.length === n && isCleanGram(tokens)) {
-              const bucketKey = gram.charAt(0).toLowerCase()
-              if (!buckets.has(bucketKey)) {
-                buckets.set(bucketKey, new Map<string, number>())
-              }
-              const bucket = buckets.get(bucketKey)!
-              bucket.set(gram, (bucket.get(gram) ?? 0) + match)
+              agg.set(gram, (agg.get(gram) ?? 0) + match)
             }
           }
         }
       }
     }
     
-    // Final flush of all remaining buckets
-    await flushAllBuckets()
+    // Final flush of remaining aggregate
+    await flushAgg()
 
     logger.info(`Completed ${url}, processed ${lineCount} lines, flushed ${partIndex} parts for ${type}/${shardId}`)
     
