@@ -211,8 +211,9 @@ async function processShardWithFlush(
 export async function POST(request: Request) {
   try {
     // Parse body; if missing or runAll=true, start full job in background
-    let body: any = null
-    try { body = await request.json() } catch {}
+    type RequestBody = { runAll?: boolean; type?: string; url?: string }
+    let body: RequestBody | null = null
+    try { body = await request.json() as RequestBody } catch {}
 
     const storage = await getStorage()
     const outPrefix = 'data/google-ngram'
