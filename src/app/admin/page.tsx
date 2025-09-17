@@ -158,9 +158,11 @@ export default function AdminPage() {
               }}
               disabled={wordnetRunning}
               aria-busy={wordnetRunning}
-              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wordnetRunning ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'}`}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wordnetRunning ? 'bg-gray-400 cursor-not-allowed' : 'group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'}`}
             >
-              {wordnetRunning ? 'Starting WordNet…' : 'Prepare WordNet Data'}
+              <span className={`inline-block transition-transform duration-200 ${wordnetRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                {wordnetRunning ? 'Starting WordNet…' : 'Prepare WordNet Data'}
+              </span>
             </button>
             <div className="h-4" />
             <button
@@ -185,9 +187,11 @@ export default function AdminPage() {
               }}
               disabled={ngramRunning}
               aria-busy={ngramRunning}
-              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${ngramRunning ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 hover:shadow-xl'}`}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${ngramRunning ? 'bg-gray-400 cursor-not-allowed' : 'group bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 hover:shadow-xl'}`}
             >
-              {ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}
+              <span className={`inline-block transition-transform duration-200 ${ngramRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                {ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}
+              </span>
             </button>
           </div>
         )}
