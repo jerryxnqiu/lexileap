@@ -243,6 +243,12 @@ export async function POST(request: Request) {
           }
           // Process shard and accumulate results for this type
           const shardResult = await processShardWithFlush(storage, outPrefix, t, shardId, url, n)
+          
+          // Save filtered results for this shard to reduce memory pressure
+          const filteredShardGrams = Array.from(shardResult.entries()).filter(([_, freq]) => freq >= FREQUENCY_THRESHOLD)
+          await storage.bucket().file(`${outPrefix}/${t}_${shardId}_filtered.json`).save(JSON.stringify(filteredShardGrams))
+          logger.info(`(worker) Saved ${filteredShardGrams.length} filtered grams for ${t}/${shardId} (threshold: ${FREQUENCY_THRESHOLD})`)
+          
           // Merge shard results into type aggregate
           for (const [gram, freq] of shardResult.entries()) {
             typeAgg.set(gram, (typeAgg.get(gram) || 0) + freq)
@@ -256,6 +262,10 @@ export async function POST(request: Request) {
         const top = filterAndRank(typeAgg, n, topCounts[t])
         await storage.bucket().file(`${outPrefix}/${t}_top.json`).save(JSON.stringify(top))
         logger.info(`(worker) Wrote ${t}_top.json (${top.length}) from ${typeAgg.size} total grams`)
+        
+        // Clear memory for this type
+        typeAgg.clear()
+        if (global.gc) global.gc()
       }
 
 
