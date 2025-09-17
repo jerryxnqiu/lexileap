@@ -19,12 +19,28 @@ export async function POST() {
     const client = await auth.getIdTokenClient(base)
     const headers = await client.getRequestHeaders()
 
-    const upstream = await fetch(`${base}/api/google-ngram/generate-data`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runAll: true }),
-      cache: 'no-store'
-    })
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    const fetchWithRetry = async (attempts = 5): Promise<Response> => {
+      let delay = 500
+      for (let i = 0; i < attempts; i++) {
+        try {
+          return await fetch(`${base}/api/google-ngram/generate-data`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ runAll: true }),
+            cache: 'no-store'
+          })
+        } catch (e) {
+          if (i === attempts - 1) throw e
+          await sleep(delay + Math.floor(Math.random() * 250))
+          delay *= 2
+        }
+      }
+      // Should not reach here
+      throw new Error('unreachable')
+    }
+
+    const upstream = await fetchWithRetry()
 
     if (!upstream.ok) {
       const errorText = await upstream.text()
