@@ -39,7 +39,7 @@ steps:
 substitutions:
   _SERVICE: lexileap-data
   _REGION: australia-southeast1
-  _MEMORY: 6Gi
+  _MEMORY: 8Gi
   _CPU: "2"
   _CONCURRENCY: "20"
   _SERVICE_ACCOUNT: lexileap-cloud-run@business-dfb30.iam.gserviceaccount.com

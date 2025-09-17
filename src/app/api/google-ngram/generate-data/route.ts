@@ -8,8 +8,6 @@ export const dynamic = 'force-dynamic'
 function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 
-// Control memory by flushing partial aggregates at a fixed size
-const AGG_SIZE_LIMIT = 25_000
 
 // Build shard URLs for Google Ngram
 function buildShardUrls(n: 1 | 2 | 3 | 4 | 5): string[] {
@@ -79,13 +77,13 @@ async function processShardWithFlush(
   shardId: string,
   url: string,
   n: number
-): Promise<{ parts: number; totalLines: number }> {
+): Promise<Map<string, number>> {
   try {
     logger.info(`Processing URL: ${url}`)
     const res = await fetchWithRetry(url, { cache: 'no-store' })
     if (!res.ok || !res.body) {
       logger.error(`Fetch failed for ${url}: ${res.status} ${res.statusText}`)
-      return { parts: 0, totalLines: 0 }
+      return new Map<string, number>()
     }
     
     // Handle gzip (.gz) sources via Web Streams DecompressionStream when needed
@@ -105,18 +103,8 @@ async function processShardWithFlush(
     
     let buf = ''
     let lineCount = 0
-    let partIndex = 0
-    // Single aggregate map; flush when it grows beyond the limit
+    // Keep everything in memory - no temp files
     const agg = new Map<string, number>()
-
-    const flushAgg = async () => {
-      if (agg.size === 0) return
-      const tempFile = `${outPrefix}/temp_${type}_${shardId}_part${partIndex++}.json`
-      await storage.bucket().file(tempFile).save(JSON.stringify(Array.from(agg.entries())))
-      logger.info(`Flushed part ${partIndex} for ${type}/${shardId}: ${agg.size} grams -> ${tempFile}`)
-      agg.clear()
-      if (global.gc) global.gc()
-    }
     
     while (true) {
       const { done, value } = await reader.read()
@@ -144,12 +132,9 @@ async function processShardWithFlush(
             if (tokens.length !== n) continue
             if (!isCleanGram(tokens)) continue
             
-            // Add to aggregate, flush when large
+            // Add to aggregate - keep in memory
             const prev = agg.get(gram) ?? 0
             agg.set(gram, prev + match)
-            if (agg.size > AGG_SIZE_LIMIT) {
-              await flushAgg()
-            }
           }
         }
       }
@@ -172,19 +157,16 @@ async function processShardWithFlush(
       }
     }
     
-    // Final flush of remaining aggregate
-    await flushAgg()
-
-    logger.info(`Completed ${url}, processed ${lineCount} lines, flushed ${partIndex} parts for ${type}/${shardId}`)
+    logger.info(`Completed ${url}, processed ${lineCount} lines, ${agg.size} unique grams for ${type}/${shardId}`)
     
     // Force garbage collection hint - the raw data is now out of scope
     if (global.gc) {
       global.gc()
     }
-    return { parts: partIndex, totalLines: lineCount }
+    return agg
   } catch (e) {
     logger.error('Process URL error:', e instanceof Error ? e : new Error(String(e)))
-    return { parts: 0, totalLines: 0 }
+    return new Map<string, number>()
   }
 }
 
@@ -223,10 +205,8 @@ export async function POST(request: Request) {
         await checkpoints.doc(`${type}_${shardId}`).set({ status: 'done', url, updatedAt: new Date() })
       }
 
-      const cleanShardTemps = async (type: string, shardId: string) => {
-        const [oldTemps] = await storage.bucket().getFiles({ prefix: `${outPrefix}/temp_${type}_${shardId}_` })
-        for (const f of oldTemps) { try { await f.delete() } catch {} }
-      }
+      // Global aggregate for all shards
+      const globalAgg = new Map<string, number>()
 
       for (const t of types) {
         const n = parseInt(t.replace('gram',''), 10) as 1|2|3|4|5
@@ -244,36 +224,32 @@ export async function POST(request: Request) {
             skipped++
             continue
           }
-          // Remove any previous partial temps to avoid double counting
-          await cleanShardTemps(t, shardId)
-          await processShardWithFlush(storage, outPrefix, t, shardId, url, n)
+          // Process shard and accumulate results
+          const shardResult = await processShardWithFlush(storage, outPrefix, t, shardId, url, n)
+          // Merge shard results into global aggregate
+          for (const [gram, freq] of shardResult.entries()) {
+            globalAgg.set(gram, (globalAgg.get(gram) || 0) + freq)
+          }
           await markDone(t, shardId, url)
           processed++
         }
       }
 
-      // Merge step (only when all shards done)
+      // Write final results for each n-gram type
       const topCounts: Record<string, number> = { '1gram': 30000, '2gram': 10000, '3gram': 10000, '4gram': 10000, '5gram': 10000 }
       for (const t of ['1gram','2gram','3gram','4gram','5gram']) {
         const n = parseInt(t.replace('gram',''), 10)
-        const [files] = await storage.bucket().getFiles({ prefix: `${outPrefix}/temp_${t}_` })
-        logger.info(`(worker) Merging ${files.length} files for ${t}`)
-        const agg = new Map<string, number>()
-        for (const f of files) {
-          try {
-            const [data] = await f.download()
-            const entries = JSON.parse(data.toString()) as Array<[string, number]>
-            for (const [gram, freq] of entries) {
-              agg.set(gram, (agg.get(gram) || 0) + freq)
-            }
-          } catch (e) {
-            logger.error(`(worker) Failed reading ${f.name}:`, e instanceof Error ? e : new Error(String(e)))
+        // Filter global aggregate for this n-gram type
+        const typeAgg = new Map<string, number>()
+        for (const [gram, freq] of globalAgg.entries()) {
+          const tokens = gram.split(' ')
+          if (tokens.length === n) {
+            typeAgg.set(gram, freq)
           }
         }
-        const top = filterAndRank(agg, n, topCounts[t])
+        const top = filterAndRank(typeAgg, n, topCounts[t])
         await storage.bucket().file(`${outPrefix}/${t}_top.json`).save(JSON.stringify(top))
-        for (const f of files) { try { await f.delete() } catch {} }
-        logger.info(`(worker) Wrote ${t}_top.json (${top.length}) and cleaned temps`)
+        logger.info(`(worker) Wrote ${t}_top.json (${top.length}) from ${typeAgg.size} total grams`)
       }
 
       try { await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() }) } catch {}
@@ -289,9 +265,9 @@ export async function POST(request: Request) {
     }
     const n = parseInt(type.replace('gram',''), 10)
     const shardId = url.split('/').pop()?.replace('.gz', '') || 'unknown'
-    const { parts, totalLines } = await processShardWithFlush(storage, outPrefix, type, shardId, url, n)
+    const agg = await processShardWithFlush(storage, outPrefix, type, shardId, url, n)
     try { const db = await getDb(); await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() }) } catch {}
-    return NextResponse.json({ success: true, type, shard: shardId, parts, totalLines })
+    return NextResponse.json({ success: true, type, shard: shardId, uniqueGrams: agg.size })
   } catch (error) {
     logger.error('Google Ngram generation error (data instance):', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Failed to prepare Google Ngram dataset' }, { status: 500 })
