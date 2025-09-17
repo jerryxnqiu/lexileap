@@ -9,6 +9,8 @@ function isAlpha(word: string): boolean { return /^[A-Za-z]+$/.test(word) }
 function isCleanGram(tokens: string[]): boolean { return tokens.length>0 && tokens.every(t=>isAlpha(t)) }
 
 
+const FREQUENCY_THRESHOLD = 5000 // Filter out grams with frequency below this
+
 // Build shard URLs for Google Ngram
 function buildShardUrls(n: 1 | 2 | 3 | 4 | 5): string[] {
   const base = `http://storage.googleapis.com/books/ngrams/books/googlebooks-eng-all-${n}gram-20120701-`
@@ -134,7 +136,13 @@ async function processShardWithFlush(
             
             // Add to aggregate - keep in memory
             const prev = agg.get(gram) ?? 0
-            agg.set(gram, prev + match)
+            const newFreq = prev + match
+            agg.set(gram, newFreq)
+            
+            // Remove if below threshold to save memory
+            if (newFreq < FREQUENCY_THRESHOLD) {
+              agg.delete(gram)
+            }
           }
         }
       }
@@ -150,7 +158,14 @@ async function processShardWithFlush(
           if (Number.isFinite(match)) {
             const tokens = gram.split(' ')
             if (tokens.length === n && isCleanGram(tokens)) {
-              agg.set(gram, (agg.get(gram) ?? 0) + match)
+              const prev = agg.get(gram) ?? 0
+              const newFreq = prev + match
+              agg.set(gram, newFreq)
+              
+              // Remove if below threshold to save memory
+              if (newFreq < FREQUENCY_THRESHOLD) {
+                agg.delete(gram)
+              }
             }
           }
         }
@@ -205,13 +220,15 @@ export async function POST(request: Request) {
         await checkpoints.doc(`${type}_${shardId}`).set({ status: 'done', url, updatedAt: new Date() })
       }
 
-      // Global aggregate for all shards
-      const globalAgg = new Map<string, number>()
-
+      // Process each n-gram type separately to combine all shards before final ranking
       for (const t of types) {
         const n = parseInt(t.replace('gram',''), 10) as 1|2|3|4|5
         const urls = buildShardUrls(n)
-        logger.info(`(worker) Starting ${t} with ${urls.length} urls (resumable)`)      
+        logger.info(`(worker) Starting ${t} with ${urls.length} urls (resumable)`)
+        
+        // Aggregate for this n-gram type only
+        const typeAgg = new Map<string, number>()
+        
         for (const url of urls) {
           if (Date.now() - startTime > DEADLINE_MS) {
             logger.info('(worker) Time budget reached, returning progress')
@@ -224,33 +241,23 @@ export async function POST(request: Request) {
             skipped++
             continue
           }
-          // Process shard and accumulate results
+          // Process shard and accumulate results for this type
           const shardResult = await processShardWithFlush(storage, outPrefix, t, shardId, url, n)
-          // Merge shard results into global aggregate
+          // Merge shard results into type aggregate
           for (const [gram, freq] of shardResult.entries()) {
-            globalAgg.set(gram, (globalAgg.get(gram) || 0) + freq)
+            typeAgg.set(gram, (typeAgg.get(gram) || 0) + freq)
           }
           await markDone(t, shardId, url)
           processed++
         }
-      }
-
-      // Write final results for each n-gram type
-      const topCounts: Record<string, number> = { '1gram': 30000, '2gram': 10000, '3gram': 10000, '4gram': 10000, '5gram': 10000 }
-      for (const t of ['1gram','2gram','3gram','4gram','5gram']) {
-        const n = parseInt(t.replace('gram',''), 10)
-        // Filter global aggregate for this n-gram type
-        const typeAgg = new Map<string, number>()
-        for (const [gram, freq] of globalAgg.entries()) {
-          const tokens = gram.split(' ')
-          if (tokens.length === n) {
-            typeAgg.set(gram, freq)
-          }
-        }
+        
+        // Apply final threshold and ranking for this type
+        const topCounts: Record<string, number> = { '1gram': 30000, '2gram': 10000, '3gram': 10000, '4gram': 10000, '5gram': 10000 }
         const top = filterAndRank(typeAgg, n, topCounts[t])
         await storage.bucket().file(`${outPrefix}/${t}_top.json`).save(JSON.stringify(top))
         logger.info(`(worker) Wrote ${t}_top.json (${top.length}) from ${typeAgg.size} total grams`)
       }
+
 
       try { await db.collection('system_jobs').doc('google_ngram_last_run').set({ ranAt: new Date() }) } catch {}
       logger.info('(worker) Google Ngram full job completed (resumable)')
