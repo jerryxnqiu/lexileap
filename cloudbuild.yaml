@@ -36,6 +36,26 @@ steps:
       - --service-account=$_SERVICE_ACCOUNT
 
 
+  # Ensure scripts bucket exists
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gsutil ls -b gs://$_SCRIPTS_BUCKET >/dev/null 2>&1 || \
+        gsutil mb -l $_REGION gs://$_SCRIPTS_BUCKET
+
+  # Upload startup scripts from repo to GCS
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gsutil cp scripts/requirements.txt gs://$_SCRIPTS_BUCKET/$_SCRIPTS_PREFIX/requirements.txt
+        gsutil cp scripts/ngram_processor.py gs://$_SCRIPTS_BUCKET/$_SCRIPTS_PREFIX/ngram_processor.py
+        gsutil cp scripts/compute_engine_startup.sh gs://$_SCRIPTS_BUCKET/$_SCRIPTS_PREFIX/compute_engine_startup.sh
+
+
 substitutions:
   _SERVICE: lexileap-data
   _REGION: australia-southeast1
@@ -43,6 +63,8 @@ substitutions:
   _CPU: "2"
   _CONCURRENCY: "20"
   _SERVICE_ACCOUNT: lexileap-cloud-run@business-dfb30.iam.gserviceaccount.com
+  _SCRIPTS_BUCKET: $PROJECT_ID-compute-engine-startup
+  _SCRIPTS_PREFIX: compute-engine-startup
 
 options:
   logging: CLOUD_LOGGING_ONLY
