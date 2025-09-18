@@ -24,6 +24,8 @@ md() {
 
 # Read metadata-provided settings
 FIREBASE_STORAGE_BUCKET=$(md instance/attributes/firebase-storage-bucket)
+# Strip leading gs:// if present
+FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET#gs://}
 SCRIPTS_BUCKET=$(md instance/attributes/startup-scripts-bucket)
 SCRIPTS_PREFIX=$(md instance/attributes/startup-scripts-prefix)
 
