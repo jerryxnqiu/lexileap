@@ -13,6 +13,7 @@ export async function POST() {
     const machineType = 'e2-standard-8'
     const serviceAccount = await getSecret('gcp-service-account')
     const firebaseBucket = await getSecret('firebase-storage-bucket')
+    const firestoreDb = 'lexileap'
     
     if (!projectId) {
       return NextResponse.json({ error: 'GCP project ID not configured' }, { status: 503 })
@@ -68,6 +69,9 @@ export async function POST() {
         }, {
           key: 'startup-scripts-prefix',
           value: scriptsPrefix
+        }, {
+          key: 'firestore-database',
+          value: firestoreDb
         }]
       },
       tags: {

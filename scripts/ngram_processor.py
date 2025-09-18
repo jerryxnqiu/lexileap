@@ -167,6 +167,14 @@ def main():
         return
     out_prefix = 'data/google-ngram'
     
+    # Initialize Firestore (support non-default database name via FIRESTORE_DB)
+    firestore_db = os.environ.get('FIRESTORE_DB')
+    try:
+        db_client = firestore.Client(database=firestore_db) if firestore_db else firestore.Client()
+    except Exception as e:
+        logger.error(f"Failed to initialize Firestore client: {e}")
+        db_client = None
+
     # Process each n-gram type
     for n in range(1, 6):
         ngram_type = f"{n}gram"
@@ -199,8 +207,20 @@ def main():
             for gram, freq in shard_results.items():
                 type_aggregate[gram] += freq
             
-            # Update checkpoint
-            update_firestore_checkpoint(ngram_type, shard_id, url)
+            # Update checkpoint (if Firestore available)
+            try:
+                if db_client:
+                    # Use the initialized client rather than implicit default
+                    doc_ref = db_client.collection('ngram_shards').document(f"{ngram_type}_{shard_id}")
+                    doc_ref.set({
+                        'status': 'done',
+                        'url': url,
+                        'updatedAt': firestore.SERVER_TIMESTAMP
+                    })
+                else:
+                    update_firestore_checkpoint(ngram_type, shard_id, url)
+            except Exception as e:
+                logger.error(f"Error updating checkpoint with explicit client: {e}")
             processed_count += 1
             
             # Small delay to avoid overwhelming the system
