@@ -145,11 +145,11 @@ def update_firestore_checkpoint(ngram_type: str, shard_id: str, url: str) -> Non
     except Exception as e:
         logger.error(f"Error updating checkpoint: {e}")
 
-def is_shard_done(ngram_type: str, shard_id: str) -> bool:
-    """Check if shard is already processed"""
+def is_shard_done(ngram_type: str, shard_id: str, db_client: firestore.Client | None) -> bool:
+    """Check if shard is already processed using provided Firestore client (supports non-default DB)."""
     try:
-        db = firestore.Client()
-        doc_ref = db.collection('ngram_shards').document(f"{ngram_type}_{shard_id}")
+        client = db_client or firestore.Client()
+        doc_ref = client.collection('ngram_shards').document(f"{ngram_type}_{shard_id}")
         doc = doc_ref.get()
         return doc.exists and doc.get('status') == 'done'
     except Exception as e:
@@ -175,6 +175,10 @@ def main():
         logger.error(f"Failed to initialize Firestore client: {e}")
         db_client = None
 
+    # Hold consolidated outputs
+    words_top: List[Dict[str, int]] = []
+    phrases_top_accum: List[Dict[str, int]] = []
+
     # Process each n-gram type
     for n in range(1, 6):
         ngram_type = f"{n}gram"
@@ -189,7 +193,7 @@ def main():
             shard_id = url.split('/')[-1].replace('.gz', '')
             
             # Check if already processed
-            if is_shard_done(ngram_type, shard_id):
+            if is_shard_done(ngram_type, shard_id, db_client):
                 logger.info(f"Skipping {ngram_type}/{shard_id} - already processed")
                 skipped_count += 1
                 continue
@@ -231,6 +235,12 @@ def main():
         top_results = filter_and_rank(dict(type_aggregate), n, TOP_COUNTS[ngram_type])
         top_file = f"{out_prefix}/{ngram_type}_top.json"
         upload_to_storage(bucket_name, top_file, top_results)
+
+        # Build consolidated outputs: words (1gram) and phrases (2-5gram)
+        if n == 1:
+            words_top = top_results
+        else:
+            phrases_top_accum.extend(top_results)
         
         logger.info(f"Completed {ngram_type}: processed {processed_count}, skipped {skipped_count}, "
                    f"final top {len(top_results)} grams")
@@ -246,6 +256,17 @@ def main():
     except Exception as e:
         logger.error(f"Error updating system job status: {e}")
     
+    # Write consolidated outputs
+    try:
+        if words_top:
+            upload_to_storage(bucket_name, f"{out_prefix}/words_top.json", words_top)
+        if phrases_top_accum:
+            # Optionally limit combined phrases size; keep as-is for now
+            upload_to_storage(bucket_name, f"{out_prefix}/phrases_top.json", phrases_top_accum)
+        logger.info("Wrote consolidated words_top.json and phrases_top.json")
+    except Exception as e:
+        logger.error(f"Error writing consolidated outputs: {e}")
+
     logger.info("Google Ngram processing completed successfully")
 
 if __name__ == "__main__":
