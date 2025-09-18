@@ -5,10 +5,15 @@ import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    // Trigger Compute Engine processing instead of Cloud Run
-    const response = await fetch('/api/google-ngram/trigger-compute', {
+    // Build absolute URL for internal call
+    const xfHost = request.headers.get('x-forwarded-host')
+    const xfProto = request.headers.get('x-forwarded-proto') || 'https'
+    const base = xfHost ? `${xfProto}://${xfHost}` : new URL(request.url).origin
+
+    // Trigger Compute Engine processing
+    const response = await fetch(`${base}/api/google-ngram/trigger-compute`, {
       method: 'POST',
       cache: 'no-store'
     })
