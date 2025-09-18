@@ -36,14 +36,14 @@ steps:
       - --service-account=$_SERVICE_ACCOUNT
 
 
-  # Ensure scripts bucket exists
+  # Ensure scripts bucket exists (project-scoped; name: $PROJECT_ID-$_SCRIPTS_NAMESPACE)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - -c
       - |
-        gsutil ls -b gs://$_SCRIPTS_BUCKET >/dev/null 2>&1 || \
-        gsutil mb -l $_REGION gs://$_SCRIPTS_BUCKET
+        gsutil ls -b gs://$PROJECT_ID-$_SCRIPTS_NAMESPACE >/dev/null 2>&1 || \
+        gsutil mb -l $_REGION gs://$PROJECT_ID-$_SCRIPTS_NAMESPACE
 
   # Upload startup scripts from repo to GCS
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -51,9 +51,9 @@ steps:
     args:
       - -c
       - |
-        gsutil cp scripts/requirements.txt gs://$_SCRIPTS_BUCKET/$_SCRIPTS_PREFIX/requirements.txt
-        gsutil cp scripts/ngram_processor.py gs://$_SCRIPTS_BUCKET/$_SCRIPTS_PREFIX/ngram_processor.py
-        gsutil cp scripts/compute_engine_startup.sh gs://$_SCRIPTS_BUCKET/$_SCRIPTS_PREFIX/compute_engine_startup.sh
+        gsutil cp scripts/requirements.txt gs://$PROJECT_ID-$_SCRIPTS_NAMESPACE/$_SCRIPTS_NAMESPACE/requirements.txt
+        gsutil cp scripts/ngram_processor.py gs://$PROJECT_ID-$_SCRIPTS_NAMESPACE/$_SCRIPTS_NAMESPACE/ngram_processor.py
+        gsutil cp scripts/compute_engine_startup.sh gs://$PROJECT_ID-$_SCRIPTS_NAMESPACE/$_SCRIPTS_NAMESPACE/compute_engine_startup.sh
 
 
 substitutions:
@@ -63,8 +63,7 @@ substitutions:
   _CPU: "2"
   _CONCURRENCY: "20"
   _SERVICE_ACCOUNT: lexileap-cloud-run@business-dfb30.iam.gserviceaccount.com
-  _SCRIPTS_BUCKET: $PROJECT_ID-compute-engine-startup
-  _SCRIPTS_PREFIX: compute-engine-startup
+  _SCRIPTS_NAMESPACE: compute-engine-startup
 
 options:
   logging: CLOUD_LOGGING_ONLY
