@@ -28,6 +28,7 @@ FIREBASE_STORAGE_BUCKET=$(md instance/attributes/firebase-storage-bucket)
 FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET#gs://}
 SCRIPTS_BUCKET=$(md instance/attributes/startup-scripts-bucket)
 SCRIPTS_PREFIX=$(md instance/attributes/startup-scripts-prefix)
+FIRESTORE_DB=$(md instance/attributes/firestore-database)
 
 # Fallbacks
 SCRIPTS_BUCKET=${SCRIPTS_BUCKET:-$FIREBASE_STORAGE_BUCKET}
@@ -35,8 +36,9 @@ SCRIPTS_PREFIX=${SCRIPTS_PREFIX:-compute-startup}
 
 echo "Using scripts bucket: ${SCRIPTS_BUCKET} (prefix: ${SCRIPTS_PREFIX})"
 
-# Export bucket for Python script
+# Export settings for Python script
 export FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
+export FIRESTORE_DB=${FIRESTORE_DB}
 
 # Obtain an access token for authenticated GCS downloads
 ACCESS_TOKEN=$(md instance/service-accounts/default/token | jq -r .access_token)
