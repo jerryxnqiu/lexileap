@@ -50,10 +50,9 @@ export async function POST() {
       }],
       serviceAccounts: [{
         email: serviceAccount,
+        // Use a single broad scope; IAM controls actual permissions
         scopes: [
-          'https://www.googleapis.com/auth/cloud-platform',
-          'https://www.googleapis.com/auth/firebase',
-          'https://www.googleapis.com/auth/firestore'
+          'https://www.googleapis.com/auth/cloud-platform'
         ]
       }],
       metadata: {
