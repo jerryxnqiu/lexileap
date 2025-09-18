@@ -9,7 +9,7 @@ import json
 import gzip
 import requests
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
 import re
 from google.cloud import storage, firestore
@@ -145,7 +145,7 @@ def update_firestore_checkpoint(ngram_type: str, shard_id: str, url: str) -> Non
     except Exception as e:
         logger.error(f"Error updating checkpoint: {e}")
 
-def is_shard_done(ngram_type: str, shard_id: str, db_client: firestore.Client | None) -> bool:
+def is_shard_done(ngram_type: str, shard_id: str, db_client: Optional[firestore.Client]) -> bool:
     """Check if shard is already processed using provided Firestore client (supports non-default DB)."""
     try:
         client = db_client or firestore.Client()
