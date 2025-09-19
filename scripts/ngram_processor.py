@@ -165,7 +165,7 @@ def main():
     if not bucket_name:
         logger.error('FIREBASE_STORAGE_BUCKET not set. Ensure VM metadata includes firebase-storage-bucket and startup script exports it.')
         return
-    out_prefix = 'data/google-ngram'
+    out_prefix = 'google-ngram'
     
     # Initialize Firestore (support non-default database name via FIRESTORE_DB)
     firestore_db = os.environ.get('FIRESTORE_DB')
