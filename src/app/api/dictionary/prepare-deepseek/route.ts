@@ -14,14 +14,14 @@ const MAX_RETRIES = 3
 // Cache for API responses to avoid duplicate calls
 const apiCache = new Map<string, { definition: string | null, synonyms: string[], antonyms: string[] }>()
 
-async function fetchWithRetry(url: string, body: any, maxRetries: number = MAX_RETRIES): Promise<Response> {
+async function fetchWithRetry(url: string, body: Record<string, unknown>, maxRetries: number = MAX_RETRIES): Promise<Response> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await getSecret('deepseek-api-key')}`
+          'Authorization': `Bearer ${await getSecret('lexileap-deepseek-api-key')}`
         },
         body: JSON.stringify(body)
       })
@@ -105,10 +105,10 @@ Guidelines:
     }
 
     // Parse the JSON response
-    let result
+    let result: Record<string, unknown>
     try {
       result = JSON.parse(content)
-    } catch (parseError) {
+    } catch {
       logger.error(`Failed to parse DeepSeek response for "${word}": ${content}`)
       throw new Error('Invalid JSON response from DeepSeek')
     }
@@ -118,7 +118,7 @@ Guidelines:
       throw new Error('Invalid response structure from DeepSeek')
     }
 
-    const definition = result.definition || null
+    const definition = typeof result.definition === 'string' ? result.definition : null
     const synonyms = Array.isArray(result.synonyms) ? result.synonyms.slice(0, 10) : []
     const antonyms = Array.isArray(result.antonyms) ? result.antonyms.slice(0, 10) : []
 
@@ -231,7 +231,7 @@ export async function POST() {
           
           // Remove undefined values before saving to Firestore
           const firestoreEntry = Object.fromEntries(
-            Object.entries(entry).filter(([_, value]) => value !== undefined)
+            Object.entries(entry).filter(([, value]) => value !== undefined)
           )
 
           // Save to Firestore
