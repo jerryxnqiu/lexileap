@@ -104,10 +104,18 @@ Guidelines:
       throw new Error('No content in DeepSeek response')
     }
 
-    // Parse the JSON response
+    // Parse the JSON response (handle markdown code blocks)
     let result: Record<string, unknown>
     try {
-      result = JSON.parse(content)
+      // Extract JSON from markdown code blocks if present
+      let jsonContent = content.trim()
+      if (jsonContent.startsWith('```json')) {
+        jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+      } else if (jsonContent.startsWith('```')) {
+        jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '')
+      }
+      
+      result = JSON.parse(jsonContent)
     } catch {
       logger.error(`Failed to parse DeepSeek response for "${word}": ${content}`)
       throw new Error('Invalid JSON response from DeepSeek')
