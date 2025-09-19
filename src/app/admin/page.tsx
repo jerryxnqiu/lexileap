@@ -254,7 +254,7 @@ export default function AdminPage() {
               className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${stands4Running ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl'}`}
             >
               <div className={`transition-transform duration-200 ${stands4Running ? '' : 'group-hover:translate-x-0.5'}`}>
-                <div>{stands4Running ? 'Starting Stands4…' : 'Prepare Stands4'}</div>
+                <div>{stands4Running ? 'Starting Synonyms and Antonyms…' : 'Prepare Synonyms and Antonyms'}</div>
                 <div className="text-sm opacity-90">{stands4Running ? '' : '(1-gram Only)'}</div>
               </div>
             </button>
