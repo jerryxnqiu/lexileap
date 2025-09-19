@@ -159,8 +159,11 @@ async function getWiktionaryDefinition(word: string): Promise<string | null> {
     const response = await fetchWithRetry(url)
     const data = await response.json()
     
+    logger.info(`Wiktionary API response for "${word}": ${JSON.stringify(data, null, 2)}`)
+    
     const pages = data.query?.pages
     if (!pages) {
+      logger.warn(`No pages found in Wiktionary response for "${word}"`)
       apiCache.set(cacheKey, null)
       return null
     }
@@ -168,13 +171,18 @@ async function getWiktionaryDefinition(word: string): Promise<string | null> {
     const pageId = Object.keys(pages)[0]
     const extract = pages[pageId]?.extract
     
+    logger.info(`Extract for "${word}": ${extract ? extract.substring(0, 200) + '...' : 'null'}`)
+    
     if (!extract || extract.includes('may refer to:')) {
+      logger.warn(`No extract or disambiguation page for "${word}"`)
       apiCache.set(cacheKey, null)
       return null
     }
     
     // Extract definition from HTML content
     const definition = extractWiktionaryDefinition(extract, word)
+    
+    logger.info(`Extracted definition for "${word}": ${definition || 'null'}`)
     
     apiCache.set(cacheKey, definition)
     return definition
