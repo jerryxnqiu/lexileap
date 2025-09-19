@@ -20,7 +20,7 @@ export default function AdminPage() {
   const [wordAnalytics, setWordAnalytics] = useState<WordAnalytics | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity | null>(null);
   const [activeTab, setActiveTab] = useState<'data' | 'analytics'>('data');
-  const { toasts, removeToast, showSuccess, showError, showInfo } = useToast();
+  const { toasts, removeToast, showSuccess, showError } = useToast();
 
   useEffect(() => {
     try {
