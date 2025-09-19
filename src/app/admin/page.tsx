@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Header } from '@/app/components/Header';
+import { ToastContainer, useToast } from '@/app/components/Toast';
 import { User } from '@/types/user';
 import { OverviewStats, DailyStats, WordAnalytics, RecentActivity } from '@/types/analytics';
 
@@ -11,12 +12,15 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [wordnetRunning, setWordnetRunning] = useState(false);
   const [ngramRunning, setNgramRunning] = useState(false);
+  const [wiktionaryRunning, setWiktionaryRunning] = useState(false);
+  const [stands4Running, setStands4Running] = useState(false);
   const [timeRange, setTimeRange] = useState(30);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [dailyStats, setDailyStats] = useState<DailyStats | null>(null);
   const [wordAnalytics, setWordAnalytics] = useState<WordAnalytics | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity | null>(null);
   const [activeTab, setActiveTab] = useState<'data' | 'analytics'>('data');
+  const { toasts, removeToast, showSuccess, showError, showInfo } = useToast();
 
   useEffect(() => {
     try {
@@ -97,6 +101,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Header user={user} onLogout={() => { localStorage.removeItem('lexileapUser'); window.location.href = '/'; }} />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       <main className="container mx-auto px-4 py-8">
         {!mounted ? null : (
         <>
@@ -146,12 +151,12 @@ export default function AdminPage() {
                   
                   if (!res.ok) {
                     const data = await res.json().catch(() => ({}))
-                    alert(`Generation failed: ${data.error || res.statusText}`)
+                    showError('WordNet Generation Failed', data.error || res.statusText)
                   } else {
-                    alert('WordNet job started. Check logs/storage for progress.')
+                    showSuccess('WordNet Job Started', 'Check logs/storage for progress.')
                   }
                 } catch (error) {
-                  alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                  showError('WordNet Error', error instanceof Error ? error.message : 'Unknown error')
                 } finally {
                   setWordnetRunning(false);
                 }
@@ -175,12 +180,12 @@ export default function AdminPage() {
                   })
                   if (!res.ok) {
                     const data = await res.json().catch(() => ({}))
-                    alert(`Google Ngram job failed: ${data.error || res.statusText}`)
+                    showError('Google Ngram Job Failed', data.error || res.statusText)
                   } else {
-                    alert('Google Ngram job started. Check logs/storage for progress.')
+                    showSuccess('Google Ngram Job Started', 'Check logs/storage for progress.')
                   }
                 } catch (error) {
-                  alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                  showError('Google Ngram Error', error instanceof Error ? error.message : 'Unknown error')
                 } finally {
                   setNgramRunning(false);
                 }
@@ -191,6 +196,64 @@ export default function AdminPage() {
             >
               <span className={`inline-block transition-transform duration-200 ${ngramRunning ? '' : 'group-hover:translate-x-0.5'}`}>
                 {ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}
+              </span>
+            </button>
+            <div className="h-4" />
+            <button
+              onClick={async () => {
+                if (wiktionaryRunning) return;
+                setWiktionaryRunning(true);
+                try {
+                  const res = await fetch('/api/dictionary/prepare-wiktionary', {
+                    method: 'POST'
+                  })
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    showError('Definition Preparation Failed', data.error || res.statusText)
+                  } else {
+                    showSuccess('Definition Preparation Started', 'Processing all words, phrases and collocations for definitions.')
+                  }
+                } catch (error) {
+                  showError('Definition Error', error instanceof Error ? error.message : 'Unknown error')
+                } finally {
+                  setWiktionaryRunning(false);
+                }
+              }}
+              disabled={wiktionaryRunning}
+              aria-busy={wiktionaryRunning}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wiktionaryRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 hover:shadow-xl'}`}
+            >
+              <span className={`inline-block transition-transform duration-200 ${wiktionaryRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                {wiktionaryRunning ? 'Starting Definition…' : 'Prepare Definition (All Words, Phrases & Collocations)'}
+              </span>
+            </button>
+            <div className="h-4" />
+            <button
+              onClick={async () => {
+                if (stands4Running) return;
+                setStands4Running(true);
+                try {
+                  const res = await fetch('/api/dictionary/prepare-stands4', {
+                    method: 'POST'
+                  })
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    showError('Stands4 Preparation Failed', data.error || res.statusText)
+                  } else {
+                    showSuccess('Stands4 Preparation Started', 'Processing 1-gram words for synonyms/antonyms (100/day limit).')
+                  }
+                } catch (error) {
+                  showError('Stands4 Error', error instanceof Error ? error.message : 'Unknown error')
+                } finally {
+                  setStands4Running(false);
+                }
+              }}
+              disabled={stands4Running}
+              aria-busy={stands4Running}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${stands4Running ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl'}`}
+            >
+              <span className={`inline-block transition-transform duration-200 ${stands4Running ? '' : 'group-hover:translate-x-0.5'}`}>
+                {stands4Running ? 'Starting Stands4…' : 'Prepare Stands4 (1-gram Only)'}
               </span>
             </button>
           </div>
