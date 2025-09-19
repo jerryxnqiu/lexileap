@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { GoogleAuth } from 'google-auth-library'
-import { getSecret } from '@/libs/firebase/secret'
 import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'

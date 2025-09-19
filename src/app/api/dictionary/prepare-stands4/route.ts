@@ -13,7 +13,7 @@ const MAX_RETRIES = 3
 const DAILY_LIMIT_STANDS4 = 100 // Stands4 daily limit
 
 // Cache for API responses to avoid duplicate calls
-const apiCache = new Map<string, any>()
+const apiCache = new Map<string, { synonyms: string[], antonyms: string[] }>()
 
 
 async function getDailyUsage(db: FirebaseFirestore.Firestore): Promise<DailyUsage> {
@@ -88,7 +88,7 @@ async function fetchWithRetry(url: string, maxRetries: number = MAX_RETRIES): Pr
 async function getStands4Synonyms(word: string, db: FirebaseFirestore.Firestore): Promise<{ synonyms: string[], antonyms: string[] }> {
   const cacheKey = `stands4:${word}`
   if (apiCache.has(cacheKey)) {
-    return apiCache.get(cacheKey)
+    return apiCache.get(cacheKey)!
   }
 
   // Check daily usage limit

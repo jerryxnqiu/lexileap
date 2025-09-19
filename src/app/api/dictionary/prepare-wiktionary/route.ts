@@ -11,7 +11,7 @@ const BATCH_SIZE = 1 // Process 1 words at a time for Wiktionary
 const MAX_RETRIES = 3
 
 // Cache for API responses to avoid duplicate calls
-const apiCache = new Map<string, any>()
+const apiCache = new Map<string, string | null>()
 
 async function fetchWithRetry(url: string, maxRetries: number = MAX_RETRIES): Promise<Response> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -151,7 +151,7 @@ function cleanDefinition(htmlText: string): string {
 async function getWiktionaryDefinition(word: string): Promise<string | null> {
   const cacheKey = `wiktionary:${word}`
   if (apiCache.has(cacheKey)) {
-    return apiCache.get(cacheKey)
+    return apiCache.get(cacheKey)!
   }
 
   try {

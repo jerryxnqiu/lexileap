@@ -96,7 +96,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Failed to create Compute Engine instance', details: errorText }, { status: 500 })
     }
 
-    const result = await response.json()
+    await response.json() // Consume response body
     logger.info(`Created Compute Engine instance: ${instanceName}`)
 
     return NextResponse.json({ 
