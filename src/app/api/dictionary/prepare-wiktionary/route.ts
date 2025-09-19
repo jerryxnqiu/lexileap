@@ -18,7 +18,12 @@ async function fetchWithRetry(url: string, maxRetries: number = MAX_RETRIES): Pr
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'LexiLeap/1.0 (Educational Vocabulary App)'
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
         }
       })
       
@@ -64,56 +69,52 @@ function extractWiktionaryDefinition(htmlContent: string, word: string): string 
     if (!englishMatch) {
       return null
     }
-    
+
     const englishSection = englishMatch[1]
-    
-    // Look for verb definitions first (most common)
-    const verbMatch = englishSection.match(/<h[34][^>]*>Verb<\/h[34]>([\s\S]*?)(?=<h[345]|$)/)
-    if (verbMatch) {
-      const verbSection = verbMatch[1]
-      // Extract first definition from ordered list, handling nested content
-      const firstDefMatch = verbSection.match(/<li[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*?)(?=<li|$)/)
-      if (firstDefMatch) {
-        return cleanDefinition(firstDefMatch[1])
+
+    // Priority order: Verb, Noun, Adjective, Adverb, Conjunction, Determiner, Pronoun
+    const partOfSpeechPatterns = [
+      { name: 'Verb', pattern: /<h[34][^>]*>Verb<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ },
+      { name: 'Noun', pattern: /<h[34][^>]*>Noun<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ },
+      { name: 'Adjective', pattern: /<h[34][^>]*>Adjective<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ },
+      { name: 'Adverb', pattern: /<h[34][^>]*>Adverb<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ },
+      { name: 'Conjunction', pattern: /<h[34][^>]*>Conjunction<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ },
+      { name: 'Determiner', pattern: /<h[34][^>]*>Determiner<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ },
+      { name: 'Pronoun', pattern: /<h[34][^>]*>Pronoun<\/h[34]>([\s\S]*?)(?=<h[345]|$)/ }
+    ]
+
+    for (const { name, pattern } of partOfSpeechPatterns) {
+      const match = englishSection.match(pattern)
+      if (match) {
+        const section = match[1]
+        
+        // Look for the first meaningful definition
+        // Try to find the first <li> with actual content
+        const liMatches = section.match(/<li[^>]*>([\s\S]*?)(?=<li|$)/g)
+        if (liMatches) {
+          for (const liMatch of liMatches) {
+            const content = liMatch.replace(/<li[^>]*>/, '').replace(/<\/li>$/, '')
+            const cleaned = cleanDefinition(content)
+            if (cleaned && cleaned.length > 10) { // Ensure it's a meaningful definition
+              return cleaned
+            }
+          }
+        }
+        
+        // If no <li> found, look for any text content in the section
+        const textContent = section.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        if (textContent && textContent.length > 10) {
+          return textContent.substring(0, 200) + (textContent.length > 200 ? '...' : '')
+        }
       }
     }
-    
-    // Look for noun definitions
-    const nounMatch = englishSection.match(/<h[34][^>]*>Noun<\/h[34]>([\s\S]*?)(?=<h[345]|$)/)
-    if (nounMatch) {
-      const nounSection = nounMatch[1]
-      const firstDefMatch = nounSection.match(/<li[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*?)(?=<li|$)/)
-      if (firstDefMatch) {
-        return cleanDefinition(firstDefMatch[1])
-      }
-    }
-    
-    // Look for adverb definitions
-    const adverbMatch = englishSection.match(/<h[34][^>]*>Adverb<\/h[34]>([\s\S]*?)(?=<h[345]|$)/)
-    if (adverbMatch) {
-      const adverbSection = adverbMatch[1]
-      const firstDefMatch = adverbSection.match(/<li[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*?)(?=<li|$)/)
-      if (firstDefMatch) {
-        return cleanDefinition(firstDefMatch[1])
-      }
-    }
-    
-    // Look for adjective definitions
-    const adjectiveMatch = englishSection.match(/<h[34][^>]*>Adjective<\/h[34]>([\s\S]*?)(?=<h[345]|$)/)
-    if (adjectiveMatch) {
-      const adjectiveSection = adjectiveMatch[1]
-      const firstDefMatch = adjectiveSection.match(/<li[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*?)(?=<li|$)/)
-      if (firstDefMatch) {
-        return cleanDefinition(firstDefMatch[1])
-      }
-    }
-    
+
     // Fallback: look for any definition in ordered list
     const anyDefMatch = englishSection.match(/<li[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*)/)
     if (anyDefMatch) {
       return cleanDefinition(anyDefMatch[1])
     }
-    
+
     return null
   } catch (error) {
     logger.error(`Failed to extract definition from HTML for "${word}":`, error instanceof Error ? error : new Error(String(error)))
@@ -124,7 +125,7 @@ function extractWiktionaryDefinition(htmlContent: string, word: string): string 
 function cleanDefinition(htmlText: string): string {
   // Remove HTML tags
   let cleaned = htmlText.replace(/<[^>]+>/g, '')
-  
+
   // Decode HTML entities
   cleaned = cleaned
     .replace(/&quot;/g, '"')
@@ -133,18 +134,28 @@ function cleanDefinition(htmlText: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/&nbsp;/g, ' ')
-  
+
   // Clean up extra whitespace
   cleaned = cleaned.replace(/\s+/g, ' ').trim()
-  
+
   // Remove citation brackets like [First attested from around (1350 to 1470)]
   cleaned = cleaned.replace(/\s*\[[^\]]+\]/g, '')
-  
+
+  // Remove parenthetical citations like (Shakespeare, 1 Henry VI)
+  cleaned = cleaned.replace(/\s*\([^)]*\)/g, '')
+
+  // Remove example text that starts with quotes or specific patterns
+  cleaned = cleaned.replace(/^["'].*["']\s*/, '') // Remove quoted examples at start
+  cleaned = cleaned.replace(/\s*["'].*["']$/, '') // Remove quoted examples at end
+
+  // Remove common prefixes that aren't definitions
+  cleaned = cleaned.replace(/^(Introducing|Used to|Denoting|Expressing|As|To)\s+/i, '')
+
   // Limit length to reasonable definition size
   if (cleaned.length > 200) {
     cleaned = cleaned.substring(0, 200) + '...'
   }
-  
+
   return cleaned
 }
 
@@ -155,9 +166,10 @@ async function getWiktionaryDefinition(word: string): Promise<string | null> {
   }
 
   try {
-    const url = `https://en.wiktionary.org/w/api.php?action=query&format=json&prop=extracts&titles=${encodeURIComponent(word)}&exintro=1&explaintext=1`
-    const response = await fetchWithRetry(url)
-    const data = await response.json()
+    // Try with exintro=1 first (intro only)
+    let url = `https://en.wiktionary.org/w/api.php?action=query&format=json&prop=extracts&titles=${encodeURIComponent(word)}&exintro=1&explaintext=1`
+    let response = await fetchWithRetry(url)
+    let data = await response.json()
     
     logger.info(`Wiktionary API response for "${word}": ${JSON.stringify(data, null, 2)}`)
     
@@ -169,9 +181,24 @@ async function getWiktionaryDefinition(word: string): Promise<string | null> {
     }
     
     const pageId = Object.keys(pages)[0]
-    const extract = pages[pageId]?.extract
+    let extract = pages[pageId]?.extract
     
     logger.info(`Extract for "${word}": ${extract ? extract.substring(0, 200) + '...' : 'null'}`)
+    
+    // If extract is empty, try without exintro=1 to get full content
+    if (!extract || extract.trim() === '') {
+      logger.info(`Empty extract for "${word}", trying full content...`)
+      url = `https://en.wiktionary.org/w/api.php?action=query&format=json&prop=extracts&titles=${encodeURIComponent(word)}&explaintext=1`
+      response = await fetchWithRetry(url)
+      data = await response.json()
+      
+      const fullPages = data.query?.pages
+      if (fullPages) {
+        const fullPageId = Object.keys(fullPages)[0]
+        extract = fullPages[fullPageId]?.extract
+        logger.info(`Full extract for "${word}": ${extract ? extract.substring(0, 200) + '...' : 'null'}`)
+      }
+    }
     
     if (!extract || extract.includes('may refer to:')) {
       logger.warn(`No extract or disambiguation page for "${word}"`)
