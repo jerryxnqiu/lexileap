@@ -234,8 +234,9 @@ export async function POST() {
     const db = await getDb()
     
     // Get words from storage
-    const words = await getWordsFromStorage()
-    logger.info(`Found ${words.length} words to process`)
+    const allWords = await getWordsFromStorage()
+    const words = allWords.slice(0, 10) // Trial with first 10 words only
+    logger.info(`Found ${allWords.length} total words, processing first ${words.length} words for trial`)
     
     // Process words one by one, checking database for each
     const collection = db.collection('dictionary')

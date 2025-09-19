@@ -223,9 +223,10 @@ export default function AdminPage() {
               aria-busy={wiktionaryRunning}
               className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wiktionaryRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 hover:shadow-xl'}`}
             >
-              <span className={`inline-block transition-transform duration-200 ${wiktionaryRunning ? '' : 'group-hover:translate-x-0.5'}`}>
-                {wiktionaryRunning ? 'Starting Definition…' : 'Prepare Definition (All Words, Phrases & Collocations)'}
-              </span>
+              <div className={`transition-transform duration-200 ${wiktionaryRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                <div>{wiktionaryRunning ? 'Starting Definition…' : 'Prepare Definition'}</div>
+                <div className="text-sm opacity-90">{wiktionaryRunning ? '' : '(All Words, Phrases & Collocations)'}</div>
+              </div>
             </button>
             <div className="h-4" />
             <button
@@ -252,9 +253,10 @@ export default function AdminPage() {
               aria-busy={stands4Running}
               className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${stands4Running ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl'}`}
             >
-              <span className={`inline-block transition-transform duration-200 ${stands4Running ? '' : 'group-hover:translate-x-0.5'}`}>
-                {stands4Running ? 'Starting Stands4…' : 'Prepare Stands4 (1-gram Only)'}
-              </span>
+              <div className={`transition-transform duration-200 ${stands4Running ? '' : 'group-hover:translate-x-0.5'}`}>
+                <div>{stands4Running ? 'Starting Stands4…' : 'Prepare Stands4'}</div>
+                <div className="text-sm opacity-90">{stands4Running ? '' : '(1-gram Only)'}</div>
+              </div>
             </button>
           </div>
         )}
