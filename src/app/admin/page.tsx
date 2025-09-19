@@ -12,8 +12,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [wordnetRunning, setWordnetRunning] = useState(false);
   const [ngramRunning, setNgramRunning] = useState(false);
-  const [wiktionaryRunning, setWiktionaryRunning] = useState(false);
-  const [stands4Running, setStands4Running] = useState(false);
+  const [deepseekRunning, setDeepseekRunning] = useState(false);
   const [timeRange, setTimeRange] = useState(30);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [dailyStats, setDailyStats] = useState<DailyStats | null>(null);
@@ -165,9 +164,10 @@ export default function AdminPage() {
               aria-busy={wordnetRunning}
               className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wordnetRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'}`}
             >
-              <span className={`inline-block transition-transform duration-200 ${wordnetRunning ? '' : 'group-hover:translate-x-0.5'}`}>
-                {wordnetRunning ? 'Starting WordNet…' : 'Prepare WordNet Data'}
-              </span>
+              <div className={`transition-transform duration-200 ${wordnetRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                <div>{wordnetRunning ? 'Starting WordNet…' : 'Prepare WordNet Data'}</div>
+                <div className="text-sm opacity-90">{wordnetRunning ? 'Processing WordNet data…' : '(WordNet database processing)'}</div>
+              </div>
             </button>
             <div className="h-4" />
             <button
@@ -194,68 +194,39 @@ export default function AdminPage() {
               aria-busy={ngramRunning}
               className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${ngramRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 hover:shadow-xl'}`}
             >
-              <span className={`inline-block transition-transform duration-200 ${ngramRunning ? '' : 'group-hover:translate-x-0.5'}`}>
-                {ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}
-              </span>
-            </button>
-            <div className="h-4" />
-            <button
-              onClick={async () => {
-                if (wiktionaryRunning) return;
-                setWiktionaryRunning(true);
-                try {
-                  const res = await fetch('/api/dictionary/prepare-wiktionary', {
-                    method: 'POST'
-                  })
-                  if (!res.ok) {
-                    const data = await res.json().catch(() => ({}))
-                    showError('Definition Preparation Failed', data.error || res.statusText)
-                  } else {
-                    showSuccess('Definition Preparation Started', 'Processing all words, phrases and collocations for definitions.')
-                  }
-                } catch (error) {
-                  showError('Definition Error', error instanceof Error ? error.message : 'Unknown error')
-                } finally {
-                  setWiktionaryRunning(false);
-                }
-              }}
-              disabled={wiktionaryRunning}
-              aria-busy={wiktionaryRunning}
-              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wiktionaryRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 hover:shadow-xl'}`}
-            >
-              <div className={`transition-transform duration-200 ${wiktionaryRunning ? '' : 'group-hover:translate-x-0.5'}`}>
-                <div>{wiktionaryRunning ? 'Starting Definition…' : 'Prepare Definition'}</div>
-                <div className="text-sm opacity-90">{wiktionaryRunning ? '' : '(All Words, Phrases & Collocations)'}</div>
+              <div className={`transition-transform duration-200 ${ngramRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                <div>{ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}</div>
+                <div className="text-sm opacity-90">{ngramRunning ? 'Triggering Compute Engine…' : '(Google Ngram dataset processing)'}</div>
               </div>
             </button>
             <div className="h-4" />
             <button
               onClick={async () => {
-                if (stands4Running) return;
-                setStands4Running(true);
+                if (deepseekRunning) return;
+                setDeepseekRunning(true);
                 try {
-                  const res = await fetch('/api/dictionary/prepare-stands4', {
+                  const res = await fetch('/api/dictionary/prepare-deepseek', {
                     method: 'POST'
                   })
                   if (!res.ok) {
                     const data = await res.json().catch(() => ({}))
-                    showError('Stands4 Preparation Failed', data.error || res.statusText)
+                    showError('Dictionary Preparation Failed', data.error || res.statusText)
                   } else {
-                    showSuccess('Stands4 Preparation Started', 'Processing 1-gram words for synonyms/antonyms (100/day limit).')
+                    showSuccess('Dictionary Preparation Started', 'Processing words with AI for definitions, synonyms, and antonyms.')
                   }
                 } catch (error) {
-                  showError('Stands4 Error', error instanceof Error ? error.message : 'Unknown error')
+                  showError('Dictionary Error', error instanceof Error ? error.message : 'Unknown error')
                 } finally {
-                  setStands4Running(false);
+                  setDeepseekRunning(false);
                 }
               }}
-              disabled={stands4Running}
-              aria-busy={stands4Running}
-              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${stands4Running ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl'}`}
+              disabled={deepseekRunning}
+              aria-busy={deepseekRunning}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${deepseekRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 hover:shadow-xl'}`}
             >
-              <div className={`transition-transform duration-200 ${stands4Running ? '' : 'group-hover:translate-x-0.5'}`}>
-                <div>{stands4Running ? 'Starting Synonyms and Antonyms…' : 'Prepare Synonyms and Antonyms'}</div>
-                <div className="text-sm opacity-90">{stands4Running ? '' : '(1-gram Only)'}</div>
+              <div className={`transition-transform duration-200 ${deepseekRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                <div>{deepseekRunning ? 'Starting AI Dictionary…' : 'Prepare AI Dictionary'}</div>
+                <div className="text-sm opacity-90">{deepseekRunning ? 'Processing with AI…' : '(Definitions, Synonyms & Antonyms)'}</div>
               </div>
             </button>
           </div>
