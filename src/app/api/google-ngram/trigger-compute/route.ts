@@ -10,7 +10,7 @@ export async function POST() {
     // Get Compute Engine configuration
     const projectId = await getSecret('firebase-project-id')
     const zone = await getSecret('firebase-zone')
-    const machineType = 'e2-standard-8'
+    const machineType = 'e2-medium'
     const serviceAccount = await getSecret('gcp-service-account')
     const firebaseBucket = await getSecret('firebase-storage-bucket')
     const firestoreDb = 'lexileap'
