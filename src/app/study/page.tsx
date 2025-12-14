@@ -9,7 +9,7 @@ import { WordData } from '@/types/dictionary'
 const MAX_STUDY_TIME = 30 * 60 * 1000 // 30 minutes in milliseconds
 const WORDS_TO_LOAD = 200
 const PHRASES_TO_LOAD = 50
-const WORDS_TO_SELECT = 50 // System will randomly select 50 for quiz
+const WORDS_TO_TEST = 50 // System will randomly select 50 for quiz
 
 interface VocabularyItem extends WordData {
   definition?: string
@@ -73,9 +73,13 @@ export default function StudyPage() {
       
       const data = await response.json()
       
+      console.log(`Loaded ${data.wordCount || 0} words and ${data.phraseCount || 0} phrases from API`)
+      
       // Words and phrases are already prioritized by the API
       setWords(data.words.map((w: any) => ({ ...w })))
       setPhrases(data.phrases.map((p: any) => ({ ...p })))
+      
+      console.log(`Set ${data.words?.length || 0} words and ${data.phrases?.length || 0} phrases in state`)
       
       // Automatically load definitions from database
       await loadDefinitions()
@@ -179,7 +183,7 @@ export default function StudyPage() {
       // System randomly selects 50 words/phrases
       const allItems = [...words, ...phrases]
       const shuffled = [...allItems].sort(() => Math.random() - 0.5)
-      const selected = shuffled.slice(0, WORDS_TO_SELECT)
+      const selected = shuffled.slice(0, WORDS_TO_TEST)
 
       // Save selected words
       const response = await fetch('/api/vocabulary/save-selection', {
@@ -242,23 +246,20 @@ export default function StudyPage() {
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Study Vocabulary</h1>
             <p className="text-gray-700 mb-4">
-              Study {WORDS_TO_LOAD} words and {PHRASES_TO_LOAD} phrases. System will randomly select {WORDS_TO_SELECT} for testing.
-            </p>
-            <p className="text-sm text-gray-500 mb-4">
-              Definitions are automatically loaded from the database.
+              Study {WORDS_TO_LOAD} words and {PHRASES_TO_LOAD} phrases. System will randomly select {WORDS_TO_TEST} for testing when time is up or you click the button below.
             </p>
 
             <button
               onClick={handleReady}
               className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold"
             >
-              Ready to Move to Testing (System will randomly select {WORDS_TO_SELECT} words)
+              Ready to Move to Testing (System will randomly select {WORDS_TO_TEST} words)
             </button>
           </div>
 
           <div className="bg-white rounded-lg shadow-lg p-6 overflow-x-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Vocabulary Table ({words.length + phrases.length} items)
+              Vocabulary Table ({words.length} words + {phrases.length} phrases = {words.length + phrases.length} total items)
             </h2>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">

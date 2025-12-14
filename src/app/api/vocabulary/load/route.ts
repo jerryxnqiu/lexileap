@@ -60,7 +60,7 @@ function prioritizeWords(
   priorityWords: string[],
   targetCount: number,
   priorityPercentage: number
-): WordItem[] {
+): { words: WordItem[], fromJson: string[] } {
   const priorityCount = Math.floor(targetCount * priorityPercentage)
   const remainingCount = targetCount - priorityCount
 
@@ -86,8 +86,9 @@ function prioritizeWords(
     }
   }
 
-  // Fill remaining with random words
+  // Fill remaining with random words (these are from JSON and may need DeepSeek)
   const remaining: WordItem[] = []
+  const fromJson: string[] = []
   const shuffled = [...allWords].sort(() => Math.random() - 0.5)
   
   for (const word of shuffled) {
@@ -95,11 +96,34 @@ function prioritizeWords(
     const key = word.gram.toLowerCase().trim()
     if (!used.has(key)) {
       remaining.push(word)
+      fromJson.push(key) // Track words from JSON
       used.add(key)
     }
   }
 
-  return [...prioritized, ...remaining].slice(0, targetCount)
+  const result = [...prioritized, ...remaining]
+  
+  // If we don't have enough words, fill with more random words from allWords
+  if (result.length < targetCount) {
+    const needed = targetCount - result.length
+    const additional = [...allWords]
+      .sort(() => Math.random() - 0.5)
+      .filter(w => {
+        const key = w.gram.toLowerCase().trim()
+        return !used.has(key)
+      })
+      .slice(0, needed)
+    
+    additional.forEach(w => {
+      const key = w.gram.toLowerCase().trim()
+      used.add(key)
+      fromJson.push(key) // Additional words are from JSON
+    })
+    
+    result.push(...additional)
+  }
+  
+  return { words: result.slice(0, targetCount), fromJson }
 }
 
 export async function GET(request: Request) {
@@ -145,6 +169,9 @@ export async function GET(request: Request) {
     let words: WordItem[] = []
     let phrases: WordItem[] = []
 
+    let wordsFromJson: string[] = []
+    let phrasesFromJson: string[] = []
+
     if (userId) {
       // Get user's wrong words and dictionary words
       const wrongWords = await getUserWrongWords(userId)
@@ -155,15 +182,23 @@ export async function GET(request: Request) {
       
       logger.info(`Found ${wrongWords.length} wrong words, ${dictionaryWords.length} dictionary words for user ${userId}`)
 
-      // Prioritize words (70% from wrong/dictionary, 30% new)
-      words = prioritizeWords(allWords, priorityWords, WORDS_TARGET, PRIORITY_PERCENTAGE)
+      // Prioritize words (70% from wrong/dictionary, 30% new from JSON)
+      const wordsResult = prioritizeWords(allWords, priorityWords, WORDS_TARGET, PRIORITY_PERCENTAGE)
+      words = wordsResult.words
+      wordsFromJson = wordsResult.fromJson
+      logger.info(`Prioritized words: ${words.length} total (target: ${WORDS_TARGET}), ${wordsFromJson.length} from JSON`)
       
-      // Prioritize phrases (70% from wrong/dictionary, 30% new)
-      phrases = prioritizeWords(allPhrases, priorityWords, PHRASES_TARGET, PRIORITY_PERCENTAGE)
+      // Prioritize phrases (70% from wrong/dictionary, 30% new from JSON)
+      const phrasesResult = prioritizeWords(allPhrases, priorityWords, PHRASES_TARGET, PRIORITY_PERCENTAGE)
+      phrases = phrasesResult.words
+      phrasesFromJson = phrasesResult.fromJson
+      logger.info(`Prioritized phrases: ${phrases.length} total (target: ${PHRASES_TARGET}), ${phrasesFromJson.length} from JSON`)
     } else {
-      // No userId, just return random selection
+      // No userId, all words are from JSON
       words = [...allWords].sort(() => Math.random() - 0.5).slice(0, WORDS_TARGET)
       phrases = [...allPhrases].sort(() => Math.random() - 0.5).slice(0, PHRASES_TARGET)
+      wordsFromJson = words.map(w => w.gram.toLowerCase().trim())
+      phrasesFromJson = phrases.map(p => p.gram.toLowerCase().trim())
     }
 
     return NextResponse.json({
@@ -171,7 +206,11 @@ export async function GET(request: Request) {
       words,
       phrases,
       wordCount: words.length,
-      phraseCount: phrases.length
+      phraseCount: phrases.length,
+      fromJson: {
+        words: wordsFromJson,
+        phrases: phrasesFromJson
+      }
     })
   } catch (error) {
     logger.error('Failed to load vocabulary:', error instanceof Error ? error : new Error(String(error)))
