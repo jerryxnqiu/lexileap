@@ -42,7 +42,6 @@ export default function Home() {
       } catch (error) {
         // Invalid data in localStorage, clear it
         localStorage.removeItem('lexileapUser');
-        console.error('Invalid user data in localStorage:', error);
       }
     }
     setIsLoading(false);

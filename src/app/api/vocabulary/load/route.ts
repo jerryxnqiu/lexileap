@@ -22,7 +22,8 @@ async function getUserWrongWords(userId: string): Promise<string[]> {
       const answers = Array.isArray(data?.answers) ? data.answers : []
       for (const answer of answers) {
         if (answer?.isCorrect === false && answer?.word) {
-          wrongWords.add(answer.word.toLowerCase().trim())
+          // Normalize to lowercase
+          wrongWords.add((answer.word || '').toLowerCase().trim())
         }
       }
     })
@@ -44,7 +45,8 @@ async function getDictionaryWords(): Promise<string[]> {
 
     const words: string[] = []
     snapshot.forEach(doc => {
-      const word = doc.id.toLowerCase().trim()
+      // Dictionary keys should already be lowercase, but normalize to be sure
+      const word = (doc.id || '').toLowerCase().trim()
       if (word) words.push(word)
     })
 
@@ -64,16 +66,17 @@ function prioritizeWords(
   const priorityCount = Math.floor(targetCount * priorityPercentage)
   const remainingCount = targetCount - priorityCount
 
-  // Create a map for quick lookup
+  // Create a map for quick lookup - normalize all words to lowercase
   const wordMap = new Map<string, WordItem>()
   allWords.forEach(w => {
     const key = w.gram.toLowerCase().trim()
+    // Store with lowercase gram
     if (!wordMap.has(key)) {
-      wordMap.set(key, w)
+      wordMap.set(key, { ...w, gram: key })
     }
   })
 
-  // Get priority words that exist in the data
+  // Get priority words that exist in the data - normalize to lowercase
   const prioritized: WordItem[] = []
   const used = new Set<string>()
   
@@ -95,7 +98,7 @@ function prioritizeWords(
     if (remaining.length >= remainingCount) break
     const key = word.gram.toLowerCase().trim()
     if (!used.has(key)) {
-      remaining.push(word)
+      remaining.push({ ...word, gram: key }) // Store with lowercase
       fromJson.push(key) // Track words from JSON
       used.add(key)
     }
@@ -113,6 +116,10 @@ function prioritizeWords(
         return !used.has(key)
       })
       .slice(0, needed)
+      .map(w => {
+        const key = w.gram.toLowerCase().trim()
+        return { ...w, gram: key } // Normalize to lowercase
+      })
     
     additional.forEach(w => {
       const key = w.gram.toLowerCase().trim()
@@ -123,7 +130,9 @@ function prioritizeWords(
     result.push(...additional)
   }
   
-  return { words: result.slice(0, targetCount), fromJson }
+  // Ensure all words in result are lowercase
+  const normalizedResult = result.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
+  return { words: normalizedResult.slice(0, targetCount), fromJson }
 }
 
 export async function GET(request: Request) {
@@ -194,12 +203,22 @@ export async function GET(request: Request) {
       phrasesFromJson = phrasesResult.fromJson
       logger.info(`Prioritized phrases: ${phrases.length} total (target: ${PHRASES_TARGET}), ${phrasesFromJson.length} from JSON`)
     } else {
-      // No userId, all words are from JSON
-      words = [...allWords].sort(() => Math.random() - 0.5).slice(0, WORDS_TARGET)
-      phrases = [...allPhrases].sort(() => Math.random() - 0.5).slice(0, PHRASES_TARGET)
-      wordsFromJson = words.map(w => w.gram.toLowerCase().trim())
-      phrasesFromJson = phrases.map(p => p.gram.toLowerCase().trim())
+      // No userId, all words are from JSON - normalize to lowercase
+      words = [...allWords]
+        .map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, WORDS_TARGET)
+      phrases = [...allPhrases]
+        .map(p => ({ ...p, gram: p.gram.toLowerCase().trim() }))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, PHRASES_TARGET)
+      wordsFromJson = words.map(w => w.gram)
+      phrasesFromJson = phrases.map(p => p.gram)
     }
+    
+    // Ensure all words/phrases are lowercase before returning
+    words = words.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
+    phrases = phrases.map(p => ({ ...p, gram: p.gram.toLowerCase().trim() }))
 
     return NextResponse.json({
       success: true,

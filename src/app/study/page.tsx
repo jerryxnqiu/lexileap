@@ -73,13 +73,9 @@ export default function StudyPage() {
       
       const data = await response.json()
       
-      console.log(`Loaded ${data.wordCount || 0} words and ${data.phraseCount || 0} phrases from API`)
-      
-      // Words and phrases are already prioritized by the API
-      setWords(data.words.map((w: any) => ({ ...w })))
-      setPhrases(data.phrases.map((p: any) => ({ ...p })))
-      
-      console.log(`Set ${data.words?.length || 0} words and ${data.phrases?.length || 0} phrases in state`)
+      // Words and phrases are already prioritized by the API - ensure lowercase
+      setWords(data.words.map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() })))
+      setPhrases(data.phrases.map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() })))
       
       // Automatically load definitions from database
       await loadDefinitions()
@@ -88,7 +84,6 @@ export default function StudyPage() {
       // Start timer immediately when content is loaded
       setIsTimerRunning(true)
     } catch (error) {
-      console.error('Failed to load vocabulary:', error)
       setLoading(false)
     }
   }
@@ -101,7 +96,8 @@ export default function StudyPage() {
 
   const loadDefinitions = async () => {
     try {
-      const allTexts = [...words, ...phrases].map(item => item.gram)
+      // Normalize all words to lowercase before fetching definitions
+      const allTexts = [...words, ...phrases].map(item => (item.gram || '').toLowerCase().trim())
       const response = await fetch('/api/vocabulary/definitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,17 +108,25 @@ export default function StudyPage() {
       
       const data = await response.json()
       
-      // Update words with definitions from database
-      setWords(prev => prev.map(w => ({
-        ...w,
-        ...data.definitions[w.gram]
-      })))
+      // Update words with definitions from database - normalize keys to lowercase
+      setWords(prev => prev.map(w => {
+        const key = (w.gram || '').toLowerCase().trim()
+        return {
+          ...w,
+          gram: key, // Ensure gram is lowercase
+          ...data.definitions[key]
+        }
+      }))
       
-      // Update phrases with definitions from database
-      setPhrases(prev => prev.map(p => ({
-        ...p,
-        ...data.definitions[p.gram]
-      })))
+      // Update phrases with definitions from database - normalize keys to lowercase
+      setPhrases(prev => prev.map(p => {
+        const key = (p.gram || '').toLowerCase().trim()
+        return {
+          ...p,
+          gram: key, // Ensure gram is lowercase
+          ...data.definitions[key]
+        }
+      }))
       
       // Words from database (wrong words, dictionary) should already have definitions
       // Only prepare definitions for words from words.json/phrases.json that don't exist in database
@@ -133,21 +137,22 @@ export default function StudyPage() {
         const wordsFromJson = loadData.fromJson?.words || []
         const phrasesFromJson = loadData.fromJson?.phrases || []
         
-        // Only prepare words from JSON that don't have definitions
-        const newWords = words.filter(w => 
-          wordsFromJson.includes(w.gram) && !data.definitions[w.gram]?.definition
-        )
-        const newPhrases = phrases.filter(p => 
-          phrasesFromJson.includes(p.gram) && !data.definitions[p.gram]?.definition
-        )
+        // Only prepare words from JSON that don't have definitions - normalize to lowercase for comparison
+        const newWords = words.filter(w => {
+          const key = (w.gram || '').toLowerCase().trim()
+          return wordsFromJson.includes(key) && !data.definitions[key]?.definition
+        })
+        const newPhrases = phrases.filter(p => {
+          const key = (p.gram || '').toLowerCase().trim()
+          return phrasesFromJson.includes(key) && !data.definitions[key]?.definition
+        })
         
         if (newWords.length > 0 || newPhrases.length > 0) {
-          console.log(`Preparing definitions for ${newWords.length} words and ${newPhrases.length} phrases from JSON files...`)
           await prepareNewWordsFromJson(newWords, newPhrases)
         }
       }
     } catch (error) {
-      console.error('Failed to load definitions:', error)
+      // Error handled silently - definitions will be missing
     }
   }
 
@@ -166,13 +171,12 @@ export default function StudyPage() {
 
       if (!response.ok) throw new Error('Failed to prepare definitions')
       
-      const result = await response.json()
-      console.log(`Prepared ${result.processed} new definitions from JSON files`)
+      await response.json()
       
       // Reload definitions after preparation
       await loadDefinitions()
     } catch (error) {
-      console.error('Failed to prepare new words from JSON:', error)
+      // Error handled silently - definitions will be missing
     }
   }
 
@@ -180,18 +184,21 @@ export default function StudyPage() {
     if (!user) return
 
     try {
-      // System randomly selects 50 words/phrases
+      // System randomly selects 50 words/phrases - ensure lowercase
       const allItems = [...words, ...phrases]
       const shuffled = [...allItems].sort(() => Math.random() - 0.5)
-      const selected = shuffled.slice(0, WORDS_TO_TEST)
+      const selected = shuffled.slice(0, WORDS_TO_TEST).map(item => ({
+        gram: (item.gram || '').toLowerCase().trim(),
+        freq: item.freq
+      }))
 
-      // Save selected words
+      // Save selected words (already normalized to lowercase)
       const response = await fetch('/api/vocabulary/save-selection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.email,
-          selectedWords: selected.map(item => ({ gram: item.gram, freq: item.freq }))
+          selectedWords: selected
         })
       })
 
@@ -200,7 +207,6 @@ export default function StudyPage() {
       // Navigate to quiz with selected words
       router.push(`/quiz?selection=${encodeURIComponent(JSON.stringify(selected.map(s => s.gram)))}`)
     } catch (error) {
-      console.error('Failed to save selection:', error)
       alert('Failed to save selection. Please try again.')
     }
   }
@@ -234,11 +240,11 @@ export default function StudyPage() {
             </button>
             
             <div className="flex items-center gap-4">
-              <div className="bg-indigo-100 px-4 py-2 rounded-lg border-2 border-indigo-300">
-                <span className="text-xs font-medium text-indigo-700 uppercase tracking-wide">Time</span>
-                <div className="text-2xl font-bold text-indigo-900 mt-1">
+              <div className="bg-indigo-100 px-4 py-2 rounded-lg border-2 border-indigo-300 flex items-center gap-3">
+                <span className="text-sm font-medium text-indigo-700 uppercase tracking-wide">Time:</span>
+                <span className="text-2xl font-bold text-indigo-900">
                   {formatTime(timeRemaining)}
-                </div>
+                </span>
               </div>
             </div>
           </div>
