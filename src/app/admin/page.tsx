@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [wordnetRunning, setWordnetRunning] = useState(false);
   const [ngramRunning, setNgramRunning] = useState(false);
+  const [ngramAggregateRunning, setNgramAggregateRunning] = useState(false);
   const [deepseekRunning, setDeepseekRunning] = useState(false);
   const [timeRange, setTimeRange] = useState(30);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
@@ -182,7 +183,7 @@ export default function AdminPage() {
                     const data = await res.json().catch(() => ({}))
                     showError('Google Ngram Job Failed', data.error || res.statusText)
                   } else {
-                    showSuccess('Google Ngram Job Started', 'Check logs/storage for progress.')
+                    showSuccess('Google Ngram Job Started', 'Processing shard files on Compute Engine. Check logs/storage for progress.')
                   }
                 } catch (error) {
                   showError('Google Ngram Error', error instanceof Error ? error.message : 'Unknown error')
@@ -195,8 +196,39 @@ export default function AdminPage() {
               className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${ngramRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 hover:shadow-xl'}`}
             >
               <div className={`transition-transform duration-200 ${ngramRunning ? '' : 'group-hover:translate-x-0.5'}`}>
-                <div>{ngramRunning ? 'Starting Google Ngram…' : 'Prepare Google Ngram Data'}</div>
-                <div className="text-sm opacity-90">{ngramRunning ? 'Triggering Compute Engine…' : '(Google Ngram dataset processing)'}</div>
+                <div>{ngramRunning ? 'Processing Shards…' : 'Process Google Ngram Shards'}</div>
+                <div className="text-sm opacity-90">{ngramRunning ? 'Triggering Compute Engine…' : '(Download & process shard files from Google Books)'}</div>
+              </div>
+            </button>
+            <div className="h-4" />
+            <button
+              onClick={async () => {
+                if (ngramAggregateRunning) return;
+                setNgramAggregateRunning(true);
+                try {
+                  const res = await fetch('/api/google-ngram/aggregate', {
+                    method: 'POST'
+                  })
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    showError('Ngram Aggregation Failed', data.error || res.statusText)
+                  } else {
+                    const data = await res.json().catch(() => ({}))
+                    showSuccess('Ngram Aggregation Complete', `Generated aggregate files: ${Object.keys(data.results || {}).length} types processed`)
+                  }
+                } catch (error) {
+                  showError('Ngram Aggregation Error', error instanceof Error ? error.message : 'Unknown error')
+                } finally {
+                  setNgramAggregateRunning(false);
+                }
+              }}
+              disabled={ngramAggregateRunning}
+              aria-busy={ngramAggregateRunning}
+              className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${ngramAggregateRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 hover:shadow-xl'}`}
+            >
+              <div className={`transition-transform duration-200 ${ngramAggregateRunning ? '' : 'group-hover:translate-x-0.5'}`}>
+                <div>{ngramAggregateRunning ? 'Aggregating…' : 'Aggregate Ngram Files'}</div>
+                <div className="text-sm opacity-90">{ngramAggregateRunning ? 'Generating top files & consolidated data…' : '(Create words.json & phrases.json from shard files)'}</div>
               </div>
             </button>
             <div className="h-4" />
