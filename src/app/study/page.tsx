@@ -234,7 +234,7 @@ export default function StudyPage() {
           <div className="mb-6 flex items-center justify-between">
             <button 
               onClick={() => router.push('/')}
-              className="text-sm text-gray-600 hover:text-gray-800"
+              className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
             >
               ← Back to Menu
             </button>
@@ -257,62 +257,101 @@ export default function StudyPage() {
 
             <button
               onClick={handleReady}
-              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold"
+              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold cursor-pointer"
             >
               Ready to Move to Testing (System will randomly select {WORDS_TO_TEST} words)
             </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow-lg p-6 overflow-x-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4">
               Vocabulary Table ({words.length} words + {phrases.length} phrases = {words.length + phrases.length} total items)
             </h2>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Word/Phrase
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Definition
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Synonyms
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Antonyms
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {[...words, ...phrases].map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-semibold text-gray-900">{item.gram}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-700">
+            
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Word/Phrase
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Definition
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Synonyms
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Antonyms
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {[...words, ...phrases].map((item, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-gray-900">{item.gram}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-700">
+                          {item.definition || <span className="text-gray-400 italic">No definition loaded</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-700">
+                          {item.synonyms && item.synonyms.length > 0 
+                            ? item.synonyms.join(', ') 
+                            : <span className="text-gray-400 italic">No synonyms</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-700">
+                          {item.antonyms && item.antonyms.length > 0 
+                            ? item.antonyms.join(', ') 
+                            : <span className="text-gray-400 italic">No antonyms</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+              {[...words, ...phrases].map((item, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                  <div className="mb-3">
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">{item.gram}</h3>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Definition: </span>
+                      <span className="text-gray-700">
                         {item.definition || <span className="text-gray-400 italic">No definition loaded</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-700">
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Synonyms: </span>
+                      <span className="text-gray-700">
                         {item.synonyms && item.synonyms.length > 0 
                           ? item.synonyms.join(', ') 
                           : <span className="text-gray-400 italic">No synonyms</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-700">
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Antonyms: </span>
+                      <span className="text-gray-700">
                         {item.antonyms && item.antonyms.length > 0 
                           ? item.antonyms.join(', ') 
                           : <span className="text-gray-400 italic">No antonyms</span>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </main>

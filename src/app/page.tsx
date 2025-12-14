@@ -144,7 +144,7 @@ export default function Home() {
                 <div className="w-full max-w-2xl grid gap-4 sm:grid-cols-2">
                   <button
                     onClick={() => router.push('/study')}
-                    className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span className="text-xl">🎯</span>
                     <span className="text-lg font-semibold">Start testing your vocabulary</span>
@@ -171,7 +171,7 @@ export default function Home() {
                         }
                       }
                     }}
-                    className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span className="text-xl">📚</span>
                     <span className="text-lg font-semibold">Review all vocabulary</span>
@@ -199,7 +199,7 @@ export default function Home() {
             {view === 'quiz' && (
               <div>
                 <div className="mb-4">
-                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
+                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
                 </div>
                 <QuizInterface />
               </div>
@@ -208,7 +208,7 @@ export default function Home() {
             {view === 'list' && (
               <div>
                 <div className="mb-4 flex items-center justify-between">
-                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800">← Back</button>
+                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
                   {isWordnetLoading && <span className="text-sm text-gray-500">Loading...</span>}
                 </div>
                 <VocabularyList />
