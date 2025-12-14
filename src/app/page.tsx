@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { EmailAuth } from '@/app/components/EmailAuth';
 import { QuizInterface } from '@/app/components/QuizInterface';
 import { Header } from '@/app/components/Header';
@@ -9,6 +10,7 @@ import { VocabularyList } from '@/app/components/VocabularyList';
 import { WordData } from '@/types/wordnet';
 
 export default function Home() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   // removed unused wordnetSummary
@@ -142,7 +144,7 @@ export default function Home() {
               <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="w-full max-w-2xl grid gap-4 sm:grid-cols-2">
                   <button
-                    onClick={() => setView('quiz')}
+                    onClick={() => router.push('/study')}
                     className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     <span className="text-xl">🎯</span>
