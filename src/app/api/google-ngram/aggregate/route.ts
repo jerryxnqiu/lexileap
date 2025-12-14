@@ -13,24 +13,31 @@ const TOP_COUNTS: Record<string, number> = {
 }
 
 // Shard patterns: 1gram uses a-z, 2-5gram use aa-zz
+// Python saves files with full shard ID: googlebooks-eng-all-{n}gram-20120701-{shard}
 function getShardIds(ngramType: string): string[] {
   const letters = 'abcdefghijklmnopqrstuvwxyz'
+  const n = ngramType === '1gram' ? '1' : ngramType.charAt(0)
+  const prefix = `googlebooks-eng-all-${n}gram-20120701-`
+  
   if (ngramType === '1gram') {
-    return letters.split('')
+    return letters.split('').map(letter => `${prefix}${letter}`)
   } else {
     const shards: string[] = []
     for (const i of letters) {
       for (const j of letters) {
-        shards.push(`${i}${j}`)
+        shards.push(`${prefix}${i}${j}`)
       }
     }
     return shards
   }
 }
 
-async function loadShardFile(bucket: any, ngramType: string, shardId: string): Promise<Record<string, number> | null> {
+async function loadShardFile(bucket: any, ngramType: string, fullShardId: string): Promise<Record<string, number> | null> {
   try {
-    const filePath = `google-ngram/${ngramType}_${shardId}_filtered.json`
+    // Python script saves files as: {ngram_type}_{full_shard_id}_filtered.json
+    // fullShardId already includes: googlebooks-eng-all-{n}gram-20120701-{shard}
+    // Example: 1gram_googlebooks-eng-all-1gram-20120701-a_filtered.json
+    const filePath = `google-ngram/${ngramType}_${fullShardId}_filtered.json`
     const file = bucket.file(filePath)
     const [exists] = await file.exists()
     
@@ -48,18 +55,18 @@ async function loadShardFile(bucket: any, ngramType: string, shardId: string): P
         acc[item.gram] = item.freq
         return acc
       }, {})
-      logger.info(`Loaded shard ${ngramType}_${shardId}: ${Object.keys(result).length} grams from array format`)
+      logger.info(`Loaded shard ${ngramType}_${fullShardId}: ${Object.keys(result).length} grams from array format`)
       return result
     } else if (typeof data === 'object' && data !== null) {
       const keyCount = Object.keys(data).length
-      logger.info(`Loaded shard ${ngramType}_${shardId}: ${keyCount} grams from object format`)
+      logger.info(`Loaded shard ${ngramType}_${fullShardId}: ${keyCount} grams from object format`)
       return data
     }
     
     logger.warn(`Shard file ${filePath} has unexpected format`)
     return null
   } catch (error) {
-    logger.warn(`Failed to load shard ${ngramType}_${shardId}:`, { 
+    logger.warn(`Failed to load shard ${ngramType}_${fullShardId}:`, { 
       error: error instanceof Error ? error.message : String(error) 
     })
     return null
