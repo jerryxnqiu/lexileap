@@ -98,7 +98,10 @@ export default function StudyPage() {
         body: JSON.stringify({ words: allTexts })
       })
 
-      if (!response.ok) throw new Error('Failed to load definitions')
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error')
+        throw new Error(`Failed to load definitions: ${response.status} ${errorText}`)
+      }
       
       const data = await response.json()
       
@@ -153,6 +156,12 @@ export default function StudyPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ words: newlyPreparedTexts })
           })
+          
+          if (!definitionsResponse.ok) {
+            // If definitions endpoint fails, still try to save what we have
+            await saveAllToDictionary(updatedWords, updatedPhrases)
+            return
+          }
           
           if (definitionsResponse.ok) {
             const definitionsData = await definitionsResponse.json()
