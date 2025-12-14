@@ -36,18 +36,17 @@ export default function RootLayout({
         <footer className="sticky bottom-0 z-50 border-t bg-white backdrop-blur-sm text-xs text-gray-600">
           <div className="container mx-auto px-4 py-4">
             <p>
-              This website makes use of the WordNet® lexical database.
+              This website makes use of the Google Books Ngram Dataset.
               <br />
-              WordNet® 3.0 Copyright © 2006 by Princeton University. All rights reserved.
+              Google Books Ngram Dataset is licensed under a{' '}
+              <a className="underline" href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer">
+                Creative Commons Attribution 3.0 Unported License
+              </a>.
               <br />
-              THIS SOFTWARE AND DATABASE IS PROVIDED &quot;AS IS&quot; AND PRINCETON UNIVERSITY MAKES NO 
-              REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.
-              <br />
-              The name &quot;Princeton University&quot; may not be used in advertising or publicity 
-              pertaining to distribution of the software and/or database.
-              <br />
-              For full license details, see 
-              <a className="underline" href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer"> WordNet License</a>.
+              For full license details, see{' '}
+              <a className="underline" href="https://storage.googleapis.com/books/ngrams/books/datasetsv3.html" target="_blank" rel="noopener noreferrer">
+                Google Books Ngram Dataset License
+              </a>.
             </p>
           </div>
         </footer>
