@@ -201,7 +201,13 @@ export default function AdminPage() {
             </button>
             <div className="h-4" />
             <button
-              onClick={() => {
+              onClick={(e) => {
+                // Add click effect
+                e.currentTarget.style.transform = 'scale(0.98)'
+                setTimeout(() => {
+                  e.currentTarget.style.transform = ''
+                }, 150)
+                
                 // Fire and forget - run in background
                 fetch('/api/google-ngram/aggregate', {
                   method: 'POST'
@@ -222,7 +228,7 @@ export default function AdminPage() {
                 // Show immediate feedback that job started
                 showSuccess('Aggregation Started', 'Processing in background. Check logs for progress.')
               }}
-              className="w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 group cursor-pointer bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 hover:shadow-xl"
+              className="w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 group cursor-pointer bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 hover:shadow-xl active:scale-95 active:shadow-md"
             >
               <div className="transition-transform duration-200 group-hover:translate-x-0.5">
                 <div>Aggregate Google Ngram from Shards</div>
