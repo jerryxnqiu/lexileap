@@ -161,8 +161,10 @@ export default function StudyPage() {
           })
           
           if (!definitionsResponse.ok) {
-            // If definitions endpoint fails, still try to save what we have
-            await saveAllToDictionary(updatedWords, updatedPhrases)
+            // If definitions endpoint fails, still try to save what we have (background)
+            saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
+              // Error handled silently - saving happens in background
+            })
             return
           }
           
@@ -182,15 +184,19 @@ export default function StudyPage() {
             setWords(finalWords)
             setPhrases(finalPhrases)
             
-            // Save all to dictionary with the final updated data
-            await saveAllToDictionary(finalWords, finalPhrases)
+            // Save all to dictionary with the final updated data (background, non-blocking)
+            saveAllToDictionary(finalWords, finalPhrases).catch(() => {
+              // Error handled silently - saving happens in background
+            })
             return
           }
         }
       }
       
-      // After all definitions are loaded/prepared, save all 250 items to dictionary
-      await saveAllToDictionary(updatedWords, updatedPhrases)
+      // After all definitions are loaded/prepared, save all 250 items to dictionary (background, non-blocking)
+      saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
+        // Error handled silently - saving happens in background
+      })
     } catch (error) {
       // Error handled silently - definitions will be missing
     }
