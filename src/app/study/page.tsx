@@ -68,11 +68,14 @@ export default function StudyPage() {
       const data = await response.json()
       
       // Words and phrases are already prioritized by the API - ensure lowercase
-      setWords(data.words.map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() })))
-      setPhrases(data.phrases.map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() })))
+      const initialWords = data.words.map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() }))
+      const initialPhrases = data.phrases.map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() }))
       
-      // Automatically load definitions from database
-      await loadDefinitions()
+      setWords(initialWords)
+      setPhrases(initialPhrases)
+      
+      // Automatically load definitions from database - pass the words/phrases directly
+      await loadDefinitions(initialWords, initialPhrases)
       
       setLoading(false)
       // Start timer immediately when content is loaded
@@ -88,10 +91,10 @@ export default function StudyPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const loadDefinitions = async () => {
+  const loadDefinitions = async (wordsToLoad: VocabularyItem[] = words, phrasesToLoad: VocabularyItem[] = phrases) => {
     try {
       // Normalize all words to lowercase before fetching definitions
-      const allTexts = [...words, ...phrases].map(item => (item.gram || '').toLowerCase().trim())
+      const allTexts = [...wordsToLoad, ...phrasesToLoad].map(item => (item.gram || '').toLowerCase().trim())
       const response = await fetch('/api/vocabulary/definitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,7 +109,7 @@ export default function StudyPage() {
       const data = await response.json()
       
       // Update words with definitions from database - normalize keys to lowercase
-      const updatedWords = words.map(w => {
+      const updatedWords = wordsToLoad.map(w => {
         const key = (w.gram || '').toLowerCase().trim()
         return {
           ...w,
@@ -117,7 +120,7 @@ export default function StudyPage() {
       setWords(updatedWords)
       
       // Update phrases with definitions from database - normalize keys to lowercase
-      const updatedPhrases = phrases.map(p => {
+      const updatedPhrases = phrasesToLoad.map(p => {
         const key = (p.gram || '').toLowerCase().trim()
         return {
           ...p,
