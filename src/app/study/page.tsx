@@ -23,7 +23,6 @@ export default function StudyPage() {
   const [words, setWords] = useState<VocabularyItem[]>([])
   const [phrases, setPhrases] = useState<VocabularyItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [preparing, setPreparing] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState(MAX_STUDY_TIME)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
 
@@ -77,52 +76,23 @@ export default function StudyPage() {
       // Words and phrases are already prioritized by the API
       setWords(data.words.map((w: any) => ({ ...w })))
       setPhrases(data.phrases.map((p: any) => ({ ...p })))
+      
+      // Automatically load definitions from database
+      await loadDefinitions()
+      
       setLoading(false)
+      // Start timer immediately when content is loaded
+      setIsTimerRunning(true)
     } catch (error) {
       console.error('Failed to load vocabulary:', error)
       setLoading(false)
     }
   }
 
-  const startTimer = () => {
-    setIsTimerRunning(true)
-  }
-
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000)
     const seconds = Math.floor((ms % 60000) / 1000)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
-  }
-
-
-  const prepareDefinitions = async () => {
-    if (preparing) return
-    
-    setPreparing(true)
-    try {
-      const allItems = [...words, ...phrases]
-      const response = await fetch('/api/vocabulary/prepare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          words: words.map(w => ({ gram: w.gram, freq: w.freq })),
-          phrases: phrases.map(p => ({ gram: p.gram, freq: p.freq }))
-        })
-      })
-
-      if (!response.ok) throw new Error('Failed to prepare definitions')
-      
-      const result = await response.json()
-      console.log(`Definitions prepared: ${result.processed} processed, ${result.skipped} skipped`)
-      
-      // Reload items with definitions from dictionary
-      await loadDefinitions()
-    } catch (error) {
-      console.error('Failed to prepare definitions:', error)
-      alert('Failed to prepare definitions. Please try again.')
-    } finally {
-      setPreparing(false)
-    }
   }
 
   const loadDefinitions = async () => {
@@ -138,22 +108,67 @@ export default function StudyPage() {
       
       const data = await response.json()
       
-      // Update words with definitions
+      // Update words with definitions from database
       setWords(prev => prev.map(w => ({
         ...w,
         ...data.definitions[w.gram]
       })))
       
-      // Update phrases with definitions
+      // Update phrases with definitions from database
       setPhrases(prev => prev.map(p => ({
         ...p,
         ...data.definitions[p.gram]
       })))
       
-      alert(`Loaded definitions for ${Object.keys(data.definitions).length} items`)
+      // Words from database (wrong words, dictionary) should already have definitions
+      // Only prepare definitions for words from words.json/phrases.json that don't exist in database
+      // We need to track which words came from JSON files
+      const loadResponse = await fetch(`/api/vocabulary/load?userId=${encodeURIComponent(user?.email || '')}`)
+      if (loadResponse.ok) {
+        const loadData = await loadResponse.json()
+        const wordsFromJson = loadData.fromJson?.words || []
+        const phrasesFromJson = loadData.fromJson?.phrases || []
+        
+        // Only prepare words from JSON that don't have definitions
+        const newWords = words.filter(w => 
+          wordsFromJson.includes(w.gram) && !data.definitions[w.gram]?.definition
+        )
+        const newPhrases = phrases.filter(p => 
+          phrasesFromJson.includes(p.gram) && !data.definitions[p.gram]?.definition
+        )
+        
+        if (newWords.length > 0 || newPhrases.length > 0) {
+          console.log(`Preparing definitions for ${newWords.length} words and ${newPhrases.length} phrases from JSON files...`)
+          await prepareNewWordsFromJson(newWords, newPhrases)
+        }
+      }
     } catch (error) {
       console.error('Failed to load definitions:', error)
-      alert('Failed to load definitions. Please try again.')
+    }
+  }
+
+  const prepareNewWordsFromJson = async (newWords: VocabularyItem[], newPhrases: VocabularyItem[]) => {
+    try {
+      if (newWords.length === 0 && newPhrases.length === 0) return
+      
+      const response = await fetch('/api/vocabulary/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          words: newWords.map(w => ({ gram: w.gram, freq: w.freq })),
+          phrases: newPhrases.map(p => ({ gram: p.gram, freq: p.freq }))
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to prepare definitions')
+      
+      const result = await response.json()
+      console.log(`Prepared ${result.processed} new definitions from JSON files`)
+      
+      // Reload definitions after preparation
+      await loadDefinitions()
+    } catch (error) {
+      console.error('Failed to prepare new words from JSON:', error)
     }
   }
 
@@ -218,14 +233,6 @@ export default function StudyPage() {
               <div className="text-sm font-semibold">
                 Time: {formatTime(timeRemaining)}
               </div>
-              {!isTimerRunning && timeRemaining > 0 && (
-                <button
-                  onClick={startTimer}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Start Timer
-                </button>
-              )}
             </div>
           </div>
 
@@ -234,16 +241,9 @@ export default function StudyPage() {
             <p className="text-gray-700 mb-4">
               Study {WORDS_TO_LOAD} words and {PHRASES_TO_LOAD} phrases. System will randomly select {WORDS_TO_SELECT} for testing.
             </p>
-            
-            <div className="flex gap-4 mb-4">
-              <button
-                onClick={prepareDefinitions}
-                disabled={preparing}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-              >
-                {preparing ? 'Preparing...' : 'Load Definitions'}
-              </button>
-            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Definitions are automatically loaded from the database.
+            </p>
 
             <button
               onClick={handleReady}
