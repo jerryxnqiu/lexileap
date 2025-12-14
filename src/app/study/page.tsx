@@ -109,24 +109,26 @@ export default function StudyPage() {
       const data = await response.json()
       
       // Update words with definitions from database - normalize keys to lowercase
-      setWords(prev => prev.map(w => {
+      const updatedWords = words.map(w => {
         const key = (w.gram || '').toLowerCase().trim()
         return {
           ...w,
           gram: key, // Ensure gram is lowercase
           ...data.definitions[key]
         }
-      }))
+      })
+      setWords(updatedWords)
       
       // Update phrases with definitions from database - normalize keys to lowercase
-      setPhrases(prev => prev.map(p => {
+      const updatedPhrases = phrases.map(p => {
         const key = (p.gram || '').toLowerCase().trim()
         return {
           ...p,
           gram: key, // Ensure gram is lowercase
           ...data.definitions[key]
         }
-      }))
+      })
+      setPhrases(updatedPhrases)
       
       // Words from database (wrong words, dictionary) should already have definitions
       // Only prepare definitions for words from words.json/phrases.json that don't exist in database
@@ -138,19 +140,51 @@ export default function StudyPage() {
         const phrasesFromJson = loadData.fromJson?.phrases || []
         
         // Only prepare words from JSON that don't have definitions - normalize to lowercase for comparison
-        const newWords = words.filter(w => {
+        const newWords = updatedWords.filter(w => {
           const key = (w.gram || '').toLowerCase().trim()
           return wordsFromJson.includes(key) && !data.definitions[key]?.definition
         })
-        const newPhrases = phrases.filter(p => {
+        const newPhrases = updatedPhrases.filter(p => {
           const key = (p.gram || '').toLowerCase().trim()
           return phrasesFromJson.includes(key) && !data.definitions[key]?.definition
         })
         
         if (newWords.length > 0 || newPhrases.length > 0) {
           await prepareNewWordsFromJson(newWords, newPhrases)
+          
+          // Reload definitions for the newly prepared words
+          const newlyPreparedTexts = [...newWords, ...newPhrases].map(item => (item.gram || '').toLowerCase().trim())
+          const definitionsResponse = await fetch('/api/vocabulary/definitions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ words: newlyPreparedTexts })
+          })
+          
+          if (definitionsResponse.ok) {
+            const definitionsData = await definitionsResponse.json()
+            
+            // Update the words/phrases with newly prepared definitions
+            const finalWords = updatedWords.map(w => {
+              const key = (w.gram || '').toLowerCase().trim()
+              return definitionsData.definitions[key] ? { ...w, ...definitionsData.definitions[key] } : w
+            })
+            const finalPhrases = updatedPhrases.map(p => {
+              const key = (p.gram || '').toLowerCase().trim()
+              return definitionsData.definitions[key] ? { ...p, ...definitionsData.definitions[key] } : p
+            })
+            
+            setWords(finalWords)
+            setPhrases(finalPhrases)
+            
+            // Save all to dictionary with the final updated data
+            await saveAllToDictionary(finalWords, finalPhrases)
+            return
+          }
         }
       }
+      
+      // After all definitions are loaded/prepared, save all 250 items to dictionary
+      await saveAllToDictionary(updatedWords, updatedPhrases)
     } catch (error) {
       // Error handled silently - definitions will be missing
     }
@@ -173,10 +207,37 @@ export default function StudyPage() {
       
       await response.json()
       
-      // Reload definitions after preparation
-      await loadDefinitions()
+      // Reload definitions after preparation - this will also save to dictionary
+      // No need to call saveAllToDictionary here as loadDefinitions will handle it
     } catch (error) {
       // Error handled silently - definitions will be missing
+    }
+  }
+
+  const saveAllToDictionary = async (wordsToSave: VocabularyItem[] = words, phrasesToSave: VocabularyItem[] = phrases) => {
+    try {
+      // Get all items with their definitions, synonyms, and antonyms
+      const allItems = [...wordsToSave, ...phrasesToSave].map(item => ({
+        gram: (item.gram || '').toLowerCase().trim(),
+        freq: item.freq || 0,
+        definition: item.definition || undefined,
+        synonyms: item.synonyms || [],
+        antonyms: item.antonyms || []
+      }))
+
+      if (allItems.length === 0) return
+
+      const response = await fetch('/api/vocabulary/save-dictionary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: allItems })
+      })
+
+      if (!response.ok) throw new Error('Failed to save to dictionary')
+      
+      await response.json()
+    } catch (error) {
+      // Error handled silently - items may not be saved but study can continue
     }
   }
 
