@@ -230,8 +230,11 @@ export default function StudyPage() {
             </button>
             
             <div className="flex items-center gap-4">
-              <div className="text-sm font-semibold">
-                Time: {formatTime(timeRemaining)}
+              <div className="bg-indigo-100 px-4 py-2 rounded-lg border-2 border-indigo-300">
+                <span className="text-xs font-medium text-indigo-700 uppercase tracking-wide">Time</span>
+                <div className="text-2xl font-bold text-indigo-900 mt-1">
+                  {formatTime(timeRemaining)}
+                </div>
               </div>
             </div>
           </div>
