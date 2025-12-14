@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/app/components/Header'
 import { User } from '@/types/user'
 import { WordData } from '@/types/dictionary'
-import { logger } from '@/libs/utils/logger'
 
 const MAX_STUDY_TIME = 30 * 60 * 1000 // 30 minutes in milliseconds
 const WORDS_TO_LOAD = 200
@@ -45,8 +44,10 @@ export default function StudyPage() {
   }, [router])
 
   useEffect(() => {
-    loadVocabulary()
-  }, [])
+    if (user) {
+      loadVocabulary()
+    }
+  }, [user])
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
