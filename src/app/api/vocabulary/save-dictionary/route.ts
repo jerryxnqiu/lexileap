@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
-import { DictionaryEntry } from '@/types/dictionary'
+import { DictionaryEntry, VocabularyItem } from '@/types/dictionary'
 
 export const dynamic = 'force-dynamic'
-
-interface VocabularyItem {
-  gram: string
-  freq: number
-  definition?: string
-  synonyms?: string[]
-  antonyms?: string[]
-}
 
 export async function POST(request: Request) {
   try {
@@ -31,10 +23,11 @@ export async function POST(request: Request) {
     logger.info(`Starting to save ${items.length} vocabulary items to dictionary`)
 
     // Process all items - ensure lowercase
-    for (const item of items) {
+    for (const item of items as VocabularyItem[]) {
       const text = item.gram?.toLowerCase().trim()
       if (!text) {
         skipped++
+        logger.warn(`Skipping item with empty gram: ${JSON.stringify(item)}`)
         continue
       }
 
@@ -46,8 +39,8 @@ export async function POST(request: Request) {
         const entry: DictionaryEntry = {
           word: text.toLowerCase().trim(),
           definition: item.definition || undefined,
-          synonyms: (item.synonyms || []).map((s: string) => s.toLowerCase().trim()),
-          antonyms: (item.antonyms || []).map((a: string) => a.toLowerCase().trim()),
+          synonyms: (item.synonyms || []).map((s: string) => s.toLowerCase().trim()).filter(s => s.length > 0),
+          antonyms: (item.antonyms || []).map((a: string) => a.toLowerCase().trim()).filter(a => a.length > 0),
           frequency: item.freq || 0,
           synonymsProcessed: true,
           lastUpdated: new Date()
@@ -57,6 +50,9 @@ export async function POST(request: Request) {
         const firestoreEntry = Object.fromEntries(
           Object.entries(entry).filter(([, value]) => value !== undefined)
         )
+
+        // Log what we're saving for debugging
+        logger.info(`Saving dictionary entry for "${text}": definition=${!!entry.definition}, synonyms=${entry.synonyms.length}, antonyms=${entry.antonyms.length}, frequency=${entry.frequency}`)
 
         if (doc.exists) {
           // Update existing entry

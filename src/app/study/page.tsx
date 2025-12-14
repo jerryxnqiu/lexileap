@@ -4,18 +4,12 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/app/components/Header'
 import { User } from '@/types/user'
-import { WordData } from '@/types/dictionary'
+import { VocabularyItem } from '@/types/dictionary'
 
 const MAX_STUDY_TIME = 30 * 60 * 1000 // 30 minutes in milliseconds
 const WORDS_TO_LOAD = 200
 const PHRASES_TO_LOAD = 50
 const WORDS_TO_TEST = 50 // System will randomly select 50 for quiz
-
-interface VocabularyItem extends WordData {
-  definition?: string
-  synonyms?: string[]
-  antonyms?: string[]
-}
 
 export default function StudyPage() {
   const router = useRouter()
@@ -225,7 +219,9 @@ export default function StudyPage() {
         antonyms: item.antonyms || []
       }))
 
-      if (allItems.length === 0) return
+      if (allItems.length === 0) {
+        return
+      }
 
       const response = await fetch('/api/vocabulary/save-dictionary', {
         method: 'POST',
@@ -233,11 +229,15 @@ export default function StudyPage() {
         body: JSON.stringify({ items: allItems })
       })
 
-      if (!response.ok) throw new Error('Failed to save to dictionary')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(`Failed to save to dictionary: ${errorData.error || response.statusText}`)
+      }
       
       await response.json()
     } catch (error) {
       // Error handled silently - items may not be saved but study can continue
+      // Server-side logging will capture the error
     }
   }
 

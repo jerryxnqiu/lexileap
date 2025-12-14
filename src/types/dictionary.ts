@@ -3,6 +3,14 @@ export interface WordData {
   freq: number
 }
 
+// Vocabulary item with optional definition, synonyms, and antonyms
+// Used for vocabulary items loaded from JSON files that may or may not have definitions yet
+export interface VocabularyItem extends WordData {
+  definition?: string
+  synonyms?: string[]
+  antonyms?: string[]
+}
+
 export interface DictionaryEntry {
   word: string
   definition?: string
