@@ -111,10 +111,13 @@ export default function StudyPage() {
       // Update words with definitions from database - normalize keys to lowercase
       const updatedWords = wordsToLoad.map(w => {
         const key = (w.gram || '').toLowerCase().trim()
+        const defData = data.definitions[key]
         return {
           ...w,
           gram: key, // Ensure gram is lowercase
-          ...data.definitions[key]
+          definition: defData?.definition || undefined,
+          synonyms: defData?.synonyms || [],
+          antonyms: defData?.antonyms || []
         }
       })
       setWords(updatedWords)
@@ -122,10 +125,13 @@ export default function StudyPage() {
       // Update phrases with definitions from database - normalize keys to lowercase
       const updatedPhrases = phrasesToLoad.map(p => {
         const key = (p.gram || '').toLowerCase().trim()
+        const defData = data.definitions[key]
         return {
           ...p,
           gram: key, // Ensure gram is lowercase
-          ...data.definitions[key]
+          definition: defData?.definition || undefined,
+          synonyms: defData?.synonyms || [],
+          antonyms: defData?.antonyms || []
         }
       })
       setPhrases(updatedPhrases)
@@ -150,67 +156,56 @@ export default function StudyPage() {
         })
         
         if (newWords.length > 0 || newPhrases.length > 0) {
-          await prepareNewWordsFromJson(newWords, newPhrases)
+          // Get definitions from DeepSeek and return immediately (saving to DB happens in background)
+          const prepareResult = await prepareNewWordsFromJson(newWords, newPhrases)
           
-          // Small delay to ensure Firestore writes have propagated
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          // Reload definitions only for the newly prepared words/phrases
-          const newlyPreparedTexts = [...newWords, ...newPhrases].map(item => (item.gram || '').toLowerCase().trim())
-          const definitionsResponse = await fetch('/api/vocabulary/definitions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ words: newlyPreparedTexts })
-          })
-          
-          if (definitionsResponse.ok) {
-            const definitionsData = await definitionsResponse.json()
-            
-            // Merge newly prepared definitions with existing definitions
-            // Non-newly-prepared words already have definitions in updatedWords/updatedPhrases
+          if (prepareResult?.definitions) {
+            // Merge newly prepared definitions (from DeepSeek) with existing definitions (from database)
             const finalWords = updatedWords.map(w => {
               const key = (w.gram || '').toLowerCase().trim()
-              // If this word was newly prepared, use the new definition data
-              const newDefData = definitionsData.definitions[key]
+              // If this word was newly prepared, use the definition from DeepSeek response
+              const newDefData = prepareResult.definitions[key]
               if (newDefData) {
                 return {
                   ...w,
                   gram: key,
-                  definition: newDefData.definition || w.definition,
-                  synonyms: newDefData.synonyms || w.synonyms || [],
-                  antonyms: newDefData.antonyms || w.antonyms || []
+                  definition: newDefData.definition || w.definition || undefined,
+                  synonyms: newDefData.synonyms?.length > 0 ? newDefData.synonyms : (w.synonyms || []),
+                  antonyms: newDefData.antonyms?.length > 0 ? newDefData.antonyms : (w.antonyms || [])
                 }
               }
-              // Otherwise keep existing definition data
+              // Otherwise keep existing definition data from database
               return w
             })
             const finalPhrases = updatedPhrases.map(p => {
               const key = (p.gram || '').toLowerCase().trim()
-              // If this phrase was newly prepared, use the new definition data
-              const newDefData = definitionsData.definitions[key]
+              // If this phrase was newly prepared, use the definition from DeepSeek response
+              const newDefData = prepareResult.definitions[key]
               if (newDefData) {
                 return {
                   ...p,
                   gram: key,
-                  definition: newDefData.definition || p.definition,
-                  synonyms: newDefData.synonyms || p.synonyms || [],
-                  antonyms: newDefData.antonyms || p.antonyms || []
+                  definition: newDefData.definition || p.definition || undefined,
+                  synonyms: newDefData.synonyms?.length > 0 ? newDefData.synonyms : (p.synonyms || []),
+                  antonyms: newDefData.antonyms?.length > 0 ? newDefData.antonyms : (p.antonyms || [])
                 }
               }
-              // Otherwise keep existing definition data
+              // Otherwise keep existing definition data from database
               return p
             })
             
+            // Display immediately with all definitions (from DB + newly from DeepSeek)
             setWords(finalWords)
             setPhrases(finalPhrases)
             
-            // Save all to dictionary with the final updated data (background, non-blocking)
+            // Save all to dictionary in background (non-blocking)
+            // Note: Newly prepared words are already being saved in background by prepare endpoint
             saveAllToDictionary(finalWords, finalPhrases).catch(() => {
               // Error handled silently - saving happens in background
             })
             return
           } else {
-            // If definitions endpoint fails, still try to save what we have (background)
+            // If prepare failed, still try to save what we have (background)
             saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
               // Error handled silently - saving happens in background
             })
@@ -228,9 +223,9 @@ export default function StudyPage() {
     }
   }
 
-  const prepareNewWordsFromJson = async (newWords: VocabularyItem[], newPhrases: VocabularyItem[]) => {
+  const prepareNewWordsFromJson = async (newWords: VocabularyItem[], newPhrases: VocabularyItem[]): Promise<{ definitions: Record<string, { definition: string | null, synonyms: string[], antonyms: string[] }> } | null> => {
     try {
-      if (newWords.length === 0 && newPhrases.length === 0) return
+      if (newWords.length === 0 && newPhrases.length === 0) return null
       
       const response = await fetch('/api/vocabulary/prepare', {
         method: 'POST',
@@ -243,12 +238,13 @@ export default function StudyPage() {
 
       if (!response.ok) throw new Error('Failed to prepare definitions')
       
-      await response.json()
+      const result = await response.json()
       
-      // Reload definitions after preparation - this will also save to dictionary
-      // No need to call saveAllToDictionary here as loadDefinitions will handle it
+      // Return definitions for immediate display (saving to DB happens in background in the endpoint)
+      return { definitions: result.definitions || {} }
     } catch (error) {
       // Error handled silently - definitions will be missing
+      return null
     }
   }
 

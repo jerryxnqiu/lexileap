@@ -139,6 +139,7 @@ export async function POST(request: Request) {
     let processed = 0
     let skipped = 0
     const total = words.length + phrases.length
+    const definitions: Record<string, { definition: string | null, synonyms: string[], antonyms: string[] }> = {}
 
     logger.info(`Starting to process ${words.length} words and ${phrases.length} phrases`)
 
@@ -161,6 +162,13 @@ export async function POST(request: Request) {
         logger.info(`Processing word: "${text}"`)
         const { definition, synonyms, antonyms } = await getDeepSeekDefinition(text, false)
 
+        // Store definition for immediate return (before saving to DB)
+        definitions[text] = {
+          definition: definition || null,
+          synonyms: synonyms.map(s => s.toLowerCase().trim()),
+          antonyms: antonyms.map(a => a.toLowerCase().trim())
+        }
+
         const entry: DictionaryEntry = {
           word: text.toLowerCase().trim(), // Ensure lowercase storage
           definition: definition || undefined,
@@ -175,8 +183,11 @@ export async function POST(request: Request) {
           Object.entries(entry).filter(([, value]) => value !== undefined)
         )
 
-        await docRef.set(firestoreEntry)
-        logger.info(`Saved dictionary entry for "${text}"`)
+        // Save to database in background (don't await - let it happen async)
+        docRef.set(firestoreEntry).catch(error => {
+          logger.error(`Failed to save dictionary entry for "${text}":`, error instanceof Error ? error : new Error(String(error)))
+        })
+        logger.info(`Queued dictionary entry save for "${text}"`)
         processed++
 
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
@@ -204,6 +215,13 @@ export async function POST(request: Request) {
         logger.info(`Processing phrase: "${text}"`)
         const { definition, synonyms, antonyms } = await getDeepSeekDefinition(text, true)
 
+        // Store definition for immediate return (before saving to DB)
+        definitions[text] = {
+          definition: definition || null,
+          synonyms: synonyms.map(s => s.toLowerCase().trim()),
+          antonyms: antonyms.map(a => a.toLowerCase().trim())
+        }
+
         const entry: DictionaryEntry = {
           word: text.toLowerCase().trim(), // Ensure lowercase storage
           definition: definition || undefined,
@@ -218,8 +236,11 @@ export async function POST(request: Request) {
           Object.entries(entry).filter(([, value]) => value !== undefined)
         )
 
-        await docRef.set(firestoreEntry)
-        logger.info(`Saved dictionary entry for phrase "${text}"`)
+        // Save to database in background (don't await - let it happen async)
+        docRef.set(firestoreEntry).catch(error => {
+          logger.error(`Failed to save dictionary entry for phrase "${text}":`, error instanceof Error ? error : new Error(String(error)))
+        })
+        logger.info(`Queued dictionary entry save for phrase "${text}"`)
         processed++
 
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
@@ -235,7 +256,8 @@ export async function POST(request: Request) {
       message: `Processed ${processed} items, skipped ${skipped} existing`,
       processed,
       skipped,
-      total
+      total,
+      definitions // Return definitions for immediate display
     })
   } catch (error) {
     logger.error('Vocabulary preparation failed:', error instanceof Error ? error : new Error(String(error)))
