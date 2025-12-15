@@ -32,14 +32,14 @@ export function QuizQuestion({
     }
 
     if (index === question.correctAnswer) {
-      return "w-full p-4 text-left border-2 border-green-500 bg-green-50 rounded-lg";
+      return "w-full p-4 text-left border-2 border-green-500 bg-green-50 rounded-lg cursor-pointer";
     }
 
     if (index === userAnswer && index !== question.correctAnswer) {
-      return "w-full p-4 text-left border-2 border-red-500 bg-red-50 rounded-lg";
+      return "w-full p-4 text-left border-2 border-red-500 bg-red-50 rounded-lg cursor-pointer";
     }
 
-    return "w-full p-4 text-left border border-gray-300 rounded-lg bg-gray-50";
+    return "w-full p-4 text-left border border-gray-300 rounded-lg bg-gray-50 cursor-pointer";
   };
 
   const getOptionIcon = (index: number) => {
@@ -161,7 +161,7 @@ export function QuizQuestion({
           <div className="text-center">
             <button
               onClick={onNext}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium"
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium cursor-pointer"
             >
               Next Question
             </button>

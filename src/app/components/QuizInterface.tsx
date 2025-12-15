@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 export function QuizInterface() {
   const router = useRouter();
 
-  const startQuiz = () => {
-    router.push('/quiz');
+  const startStudy = () => {
+    router.push('/study');
   };
 
   return (
@@ -14,13 +14,13 @@ export function QuizInterface() {
       <div className="text-center py-12">
         <h2 className="text-3xl font-bold text-gray-900 mb-6">Ready to Test Your Vocabulary?</h2>
         <p className="text-lg text-gray-700 mb-8">
-          Take a comprehensive quiz with 50 questions to test your vocabulary knowledge!
+          Study 200 words and 50 phrases, then select 50 for testing!
         </p>
         <button
-          onClick={startQuiz}
-          className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+          onClick={startStudy}
+          className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
         >
-          Start Quiz
+          Start Study Session
         </button>
       </div>
     </div>
