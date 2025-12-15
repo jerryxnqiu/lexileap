@@ -152,7 +152,10 @@ export default function StudyPage() {
         if (newWords.length > 0 || newPhrases.length > 0) {
           await prepareNewWordsFromJson(newWords, newPhrases)
           
-          // Reload definitions for the newly prepared words
+          // Small delay to ensure Firestore writes have propagated
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Reload definitions only for the newly prepared words/phrases
           const newlyPreparedTexts = [...newWords, ...newPhrases].map(item => (item.gram || '').toLowerCase().trim())
           const definitionsResponse = await fetch('/api/vocabulary/definitions', {
             method: 'POST',
@@ -160,25 +163,42 @@ export default function StudyPage() {
             body: JSON.stringify({ words: newlyPreparedTexts })
           })
           
-          if (!definitionsResponse.ok) {
-            // If definitions endpoint fails, still try to save what we have (background)
-            saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
-              // Error handled silently - saving happens in background
-            })
-            return
-          }
-          
           if (definitionsResponse.ok) {
             const definitionsData = await definitionsResponse.json()
             
-            // Update the words/phrases with newly prepared definitions
+            // Merge newly prepared definitions with existing definitions
+            // Non-newly-prepared words already have definitions in updatedWords/updatedPhrases
             const finalWords = updatedWords.map(w => {
               const key = (w.gram || '').toLowerCase().trim()
-              return definitionsData.definitions[key] ? { ...w, ...definitionsData.definitions[key] } : w
+              // If this word was newly prepared, use the new definition data
+              const newDefData = definitionsData.definitions[key]
+              if (newDefData) {
+                return {
+                  ...w,
+                  gram: key,
+                  definition: newDefData.definition || w.definition,
+                  synonyms: newDefData.synonyms || w.synonyms || [],
+                  antonyms: newDefData.antonyms || w.antonyms || []
+                }
+              }
+              // Otherwise keep existing definition data
+              return w
             })
             const finalPhrases = updatedPhrases.map(p => {
               const key = (p.gram || '').toLowerCase().trim()
-              return definitionsData.definitions[key] ? { ...p, ...definitionsData.definitions[key] } : p
+              // If this phrase was newly prepared, use the new definition data
+              const newDefData = definitionsData.definitions[key]
+              if (newDefData) {
+                return {
+                  ...p,
+                  gram: key,
+                  definition: newDefData.definition || p.definition,
+                  synonyms: newDefData.synonyms || p.synonyms || [],
+                  antonyms: newDefData.antonyms || p.antonyms || []
+                }
+              }
+              // Otherwise keep existing definition data
+              return p
             })
             
             setWords(finalWords)
@@ -186,6 +206,12 @@ export default function StudyPage() {
             
             // Save all to dictionary with the final updated data (background, non-blocking)
             saveAllToDictionary(finalWords, finalPhrases).catch(() => {
+              // Error handled silently - saving happens in background
+            })
+            return
+          } else {
+            // If definitions endpoint fails, still try to save what we have (background)
+            saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
               // Error handled silently - saving happens in background
             })
             return
