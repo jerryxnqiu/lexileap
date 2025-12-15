@@ -4,6 +4,21 @@ import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
+/*
+step 2:
+POST:       /api/vocabulary/definitions
+Purpose:    Bulk fetch definitions/synonyms/antonyms from the dictionary collection.
+Input body: { words: string[] }.
+Output:     { success, definitions: { [word]: { definition, synonyms, antonyms } }, count }.
+
+What it does:
+- For each word (normalized to lowercase):
+  - Reads "dictionary/{word}" document.
+  - Returns { definition, synonyms, antonyms } (or null/empty if missing).
+*/
+
+
+
 export async function POST(request: Request) {
   try {
     const { words } = await request.json()

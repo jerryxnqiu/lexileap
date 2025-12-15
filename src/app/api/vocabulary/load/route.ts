@@ -5,6 +5,29 @@ import { WordData } from '@/types/dictionary'
 
 export const dynamic = 'force-dynamic'
 
+/*
+step 1:
+GET:       /api/vocabulary/load
+Purpose:  Prepare the 250 study items (200 words + 50 phrases) for a user.
+Input:    "userId" (query, optional but recommended).
+Output:   { words, phrases, wordCount, phraseCount, fromJson: { words, phrases } } (all gram lowercased).
+
+What it does:
+- Loads:
+  - data/words.json (1‑gram high‑frequency words from Google Ngrams),
+  - data/phrases.json (2–5‑gram phrases).
+  - If userId is present:
+    - Finds the user’s wrong words from "user_quiz_attempts" collection.
+    - Gets words that already have definitions from "dictionary" collection.
+    - Combines both into "priorityWords".
+    - Uses "prioritizeWords" to:
+      - Pick up to 70% from "wrong/dictionary" (“priority”),
+      - Fill the remaining 30% from "data/words.json" and "data/phrases.json" (“new” words/phrases),
+      - Track which came from JSON via fromJson.words / fromJson.phrases.
+    - If no userId: random 200 words + 50 phrases purely from "data/words.json" and "data/phrases.json".
+*/
+
+
 async function getUserWrongWords(userId: string): Promise<string[]> {
   try {
     const db = await getDb()

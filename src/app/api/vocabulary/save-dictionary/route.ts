@@ -5,6 +5,23 @@ import { DictionaryEntry, VocabularyItem } from '@/types/dictionary'
 
 export const dynamic = 'force-dynamic'
 
+/*
+step 4:
+POST:       /api/vocabulary/save-dictionary
+Purpose:    Bulk write dictionary entries from client‑supplied items (used for seeding/fixes).
+Input body: { items: VocabularyItem[] } where each item has gram, freq, definition, synonyms, antonyms.
+Output:     counts of new vs skipped.
+
+What it does:
+- For each item:
+  - Normalizes "gram" to lowercase.
+  - Builds a "DictionaryEntry" with "word", "definition", "synonyms", "antonyms", "frequency", "lastUpdated", "synonymsProcessed".
+  - If a document already exists:
+    - Currently skips it to avoid overwriting (increments "skipped").
+    - Else:
+      - Writes a new document and increments "saved".
+*/
+
 export async function POST(request: Request) {
   try {
     const { items } = await request.json()
