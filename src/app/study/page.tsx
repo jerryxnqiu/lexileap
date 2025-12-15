@@ -71,11 +71,15 @@ export default function StudyPage() {
       const initialWords = data.words.map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() }))
       const initialPhrases = data.phrases.map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() }))
       
+      // Track which items came from JSON (the 30% fill-up that need DeepSeek preparation)
+      const wordsFromJson = (data.fromJson?.words || []).map((w: string) => w.toLowerCase().trim())
+      const phrasesFromJson = (data.fromJson?.phrases || []).map((p: string) => p.toLowerCase().trim())
+      
       setWords(initialWords)
       setPhrases(initialPhrases)
       
-      // Automatically load definitions from database - pass the words/phrases directly
-      await loadDefinitions(initialWords, initialPhrases)
+      // Automatically load definitions from database and prepare new ones from JSON
+      await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson)
       
       setLoading(false)
       // Start timer immediately when content is loaded
@@ -91,151 +95,159 @@ export default function StudyPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const loadDefinitions = async (wordsToLoad: VocabularyItem[] = words, phrasesToLoad: VocabularyItem[] = phrases) => {
+  const loadDefinitions = async (
+    wordsToLoad: VocabularyItem[] = words, 
+    phrasesToLoad: VocabularyItem[] = phrases,
+    wordsFromJson: string[] = [],
+    phrasesFromJson: string[] = []
+  ) => {
     try {
-      // Normalize all words to lowercase before fetching definitions
-      const allTexts = [...wordsToLoad, ...phrasesToLoad].map(item => (item.gram || '').toLowerCase().trim())
-      const response = await fetch('/api/vocabulary/definitions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: allTexts })
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error')
-        throw new Error(`Failed to load definitions: ${response.status} ${errorText}`)
-      }
-      
-      const data = await response.json()
-      
-      // Update words with definitions from database - normalize keys to lowercase
-      const updatedWords = wordsToLoad.map(w => {
+      // Separate Step 1 items (from database) and Step 2 items (from JSON)
+      const step1Words = wordsToLoad.filter(w => {
         const key = (w.gram || '').toLowerCase().trim()
-        const defData = data.definitions[key]
-        // Only set definition if it exists and is not null
-        const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
-        return {
-          ...w,
-          gram: key, // Ensure gram is lowercase
-          definition: definition,
-          synonyms: defData?.synonyms || [],
-          antonyms: defData?.antonyms || []
-        }
+        return !wordsFromJson.includes(key)
       })
-      setWords(updatedWords)
-      
-      // Update phrases with definitions from database - normalize keys to lowercase
-      const updatedPhrases = phrasesToLoad.map(p => {
+      const step1Phrases = phrasesToLoad.filter(p => {
         const key = (p.gram || '').toLowerCase().trim()
-        const defData = data.definitions[key]
-        // Only set definition if it exists and is not null
-        const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
-        return {
-          ...p,
-          gram: key, // Ensure gram is lowercase
-          definition: definition,
-          synonyms: defData?.synonyms || [],
-          antonyms: defData?.antonyms || []
-        }
+        return !phrasesFromJson.includes(key)
       })
-      setPhrases(updatedPhrases)
       
-      // Words from database (wrong words, dictionary) should already have definitions
-      // Only prepare definitions for words from words.json/phrases.json that don't exist in database
-      // We need to track which words came from JSON files
-      const loadResponse = await fetch(`/api/vocabulary/load?userId=${encodeURIComponent(user?.email || '')}`)
-      if (loadResponse.ok) {
-        const loadData = await loadResponse.json()
-        const wordsFromJson = loadData.fromJson?.words || []
-        const phrasesFromJson = loadData.fromJson?.phrases || []
-        
-        // Only prepare words from JSON that don't have definitions - normalize to lowercase for comparison
-        const newWords = updatedWords.filter(w => {
-          const key = (w.gram || '').toLowerCase().trim()
-          const defData = data.definitions[key]
-          // Check if definition is missing or null
-          const hasDefinition = defData?.definition && defData.definition !== null
-          return wordsFromJson.includes(key) && !hasDefinition
+      const step2Words = wordsToLoad.filter(w => {
+        const key = (w.gram || '').toLowerCase().trim()
+        return wordsFromJson.includes(key)
+      })
+      const step2Phrases = phrasesToLoad.filter(p => {
+        const key = (p.gram || '').toLowerCase().trim()
+        return phrasesFromJson.includes(key)
+      })
+      
+      // Step 1: Load definitions from database only for Step 1 items (from database)
+      // These items already have definitions in the database
+      let step1WordsWithDefs = step1Words
+      let step1PhrasesWithDefs = step1Phrases
+      
+      if (step1Words.length > 0 || step1Phrases.length > 0) {
+        const step1Texts = [...step1Words, ...step1Phrases].map(item => (item.gram || '').toLowerCase().trim())
+        const response = await fetch('/api/vocabulary/definitions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ words: step1Texts })
         })
-        const newPhrases = updatedPhrases.filter(p => {
-          const key = (p.gram || '').toLowerCase().trim()
-          const defData = data.definitions[key]
-          // Check if definition is missing or null
-          const hasDefinition = defData?.definition && defData.definition !== null
-          return phrasesFromJson.includes(key) && !hasDefinition
-        })
-        
-        if (newWords.length > 0 || newPhrases.length > 0) {
-          // Get definitions from DeepSeek and return immediately (saving to DB happens in background)
-          const prepareResult = await prepareNewWordsFromJson(newWords, newPhrases)
+
+        if (response.ok) {
+          const data = await response.json()
           
-          if (prepareResult?.definitions) {
-            // Merge newly prepared definitions (from DeepSeek) with existing definitions (from database)
-            const finalWords = updatedWords.map(w => {
-              const key = (w.gram || '').toLowerCase().trim()
-              // If this word was newly prepared, use the definition from DeepSeek response
-              const newDefData = prepareResult.definitions[key]
-              if (newDefData) {
-                // Use new definition if it exists and is not null, otherwise keep existing
-                const definition = (newDefData.definition && newDefData.definition !== null) 
-                  ? newDefData.definition 
-                  : (w.definition || undefined)
-                return {
-                  ...w,
-                  gram: key,
-                  definition: definition,
-                  synonyms: newDefData.synonyms?.length > 0 ? newDefData.synonyms : (w.synonyms || []),
-                  antonyms: newDefData.antonyms?.length > 0 ? newDefData.antonyms : (w.antonyms || [])
-                }
-              }
-              // Otherwise keep existing definition data from database
-              return w
-            })
-            const finalPhrases = updatedPhrases.map(p => {
-              const key = (p.gram || '').toLowerCase().trim()
-              // If this phrase was newly prepared, use the definition from DeepSeek response
-              const newDefData = prepareResult.definitions[key]
-              if (newDefData) {
-                // Use new definition if it exists and is not null, otherwise keep existing
-                const definition = (newDefData.definition && newDefData.definition !== null) 
-                  ? newDefData.definition 
-                  : (p.definition || undefined)
-                return {
-                  ...p,
-                  gram: key,
-                  definition: definition,
-                  synonyms: newDefData.synonyms?.length > 0 ? newDefData.synonyms : (p.synonyms || []),
-                  antonyms: newDefData.antonyms?.length > 0 ? newDefData.antonyms : (p.antonyms || [])
-                }
-              }
-              // Otherwise keep existing definition data from database
-              return p
-            })
-            
-            // Display immediately with all definitions (from DB + newly from DeepSeek)
-            setWords(finalWords)
-            setPhrases(finalPhrases)
-            
-            // Save all to dictionary in background (non-blocking)
-            // Note: Newly prepared words are already being saved in background by prepare endpoint
-            saveAllToDictionary(finalWords, finalPhrases).catch(() => {
-              // Error handled silently - saving happens in background
-            })
-            return
-          } else {
-            // If prepare failed, still try to save what we have (background)
-            saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
-              // Error handled silently - saving happens in background
-            })
-            return
-          }
+          // Update Step 1 words with definitions from database
+          step1WordsWithDefs = step1Words.map(w => {
+            const key = (w.gram || '').toLowerCase().trim()
+            const defData = data.definitions[key]
+            const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
+            return {
+              ...w,
+              gram: key,
+              definition: definition,
+              synonyms: defData?.synonyms || [],
+              antonyms: defData?.antonyms || []
+            }
+          })
+          
+          // Update Step 1 phrases with definitions from database
+          step1PhrasesWithDefs = step1Phrases.map(p => {
+            const key = (p.gram || '').toLowerCase().trim()
+            const defData = data.definitions[key]
+            const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
+            return {
+              ...p,
+              gram: key,
+              definition: definition,
+              synonyms: defData?.synonyms || [],
+              antonyms: defData?.antonyms || []
+            }
+          })
         }
       }
       
-      // After all definitions are loaded/prepared, save all 250 items to dictionary (background, non-blocking)
-      saveAllToDictionary(updatedWords, updatedPhrases).catch(() => {
-        // Error handled silently - saving happens in background
+      // Step 2: Prepare definitions for Step 2 items (from JSON) using DeepSeek
+      let step2WordsWithDefs = step2Words
+      let step2PhrasesWithDefs = step2Phrases
+      
+      if (step2Words.length > 0 || step2Phrases.length > 0) {
+        const prepareResult = await prepareNewWordsFromJson(step2Words, step2Phrases)
+        
+        if (prepareResult?.definitions) {
+          // Update Step 2 words with definitions from DeepSeek
+          step2WordsWithDefs = step2Words.map(w => {
+            const key = (w.gram || '').toLowerCase().trim()
+            const newDefData = prepareResult.definitions[key]
+            if (newDefData) {
+              const definition = (newDefData.definition && newDefData.definition !== null) 
+                ? newDefData.definition 
+                : undefined
+              return {
+                ...w,
+                gram: key,
+                definition: definition,
+                synonyms: newDefData.synonyms || [],
+                antonyms: newDefData.antonyms || []
+              }
+            }
+            return w
+          })
+          
+          // Update Step 2 phrases with definitions from DeepSeek
+          step2PhrasesWithDefs = step2Phrases.map(p => {
+            const key = (p.gram || '').toLowerCase().trim()
+            const newDefData = prepareResult.definitions[key]
+            if (newDefData) {
+              const definition = (newDefData.definition && newDefData.definition !== null) 
+                ? newDefData.definition 
+                : undefined
+              return {
+                ...p,
+                gram: key,
+                definition: definition,
+                synonyms: newDefData.synonyms || [],
+                antonyms: newDefData.antonyms || []
+              }
+            }
+            return p
+          })
+        }
+      }
+      
+      // Step 3: Combine Step 1 and Step 2 items, maintaining original order
+      // Reconstruct the original order by checking if each item is from Step 1 or Step 2
+      const finalWords = wordsToLoad.map(w => {
+        const key = (w.gram || '').toLowerCase().trim()
+        const isFromJson = wordsFromJson.includes(key)
+        if (isFromJson) {
+          return step2WordsWithDefs.find(sw => (sw.gram || '').toLowerCase().trim() === key) || w
+        } else {
+          return step1WordsWithDefs.find(sw => (sw.gram || '').toLowerCase().trim() === key) || w
+        }
       })
+      
+      const finalPhrases = phrasesToLoad.map(p => {
+        const key = (p.gram || '').toLowerCase().trim()
+        const isFromJson = phrasesFromJson.includes(key)
+        if (isFromJson) {
+          return step2PhrasesWithDefs.find(sp => (sp.gram || '').toLowerCase().trim() === key) || p
+        } else {
+          return step1PhrasesWithDefs.find(sp => (sp.gram || '').toLowerCase().trim() === key) || p
+        }
+      })
+      
+      // Step 4: Display all 250 items with their definitions
+      setWords(finalWords)
+      setPhrases(finalPhrases)
+      
+      // Step 5: Save only Step 2 items (from JSON) to dictionary
+      // The prepare endpoint already saves them in background, but we save here to ensure consistency
+      if (step2WordsWithDefs.length > 0 || step2PhrasesWithDefs.length > 0) {
+        saveAllToDictionary(step2WordsWithDefs, step2PhrasesWithDefs).catch(() => {
+          // Error handled silently - items are already being saved by prepare endpoint
+        })
+      }
     } catch (error) {
       // Error handled silently - definitions will be missing
     }
