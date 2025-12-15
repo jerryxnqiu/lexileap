@@ -333,30 +333,23 @@ export default function StudyPage() {
     if (!user) return
 
     try {
-      // System randomly selects 50 words/phrases - ensure lowercase
-      const allItems = [...words, ...phrases]
+      // System randomly selects 50 WORDS (no phrases) - ensure lowercase
+      const allItems = [...words]
+      if (allItems.length === 0) {
+        alert('No words available for testing yet. Please wait for loading to finish.')
+        return
+      }
+
       const shuffled = [...allItems].sort(() => Math.random() - 0.5)
       const selected = shuffled.slice(0, WORDS_TO_TEST).map(item => ({
         gram: (item.gram || '').toLowerCase().trim(),
         freq: item.freq
       }))
 
-      // Save selected words (already normalized to lowercase)
-      const response = await fetch('/api/vocabulary/save-selection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.email,
-          selectedWords: selected
-        })
-      })
-
-      if (!response.ok) throw new Error('Failed to save selection')
-      
       // Navigate to quiz with selected words
       router.push(`/quiz?selection=${encodeURIComponent(JSON.stringify(selected.map(s => s.gram)))}`)
     } catch (error) {
-      alert('Failed to save selection. Please try again.')
+      alert('Failed to start quiz. Please try again.')
     }
   }
 
