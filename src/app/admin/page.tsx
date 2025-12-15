@@ -64,7 +64,6 @@ export default function AdminPage() {
         setRecentActivity(data.recent);
       }
     } catch (error) {
-      console.error('Error fetching analytics:', error);
     }
   };
 
