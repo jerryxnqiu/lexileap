@@ -112,10 +112,12 @@ export default function StudyPage() {
       const updatedWords = wordsToLoad.map(w => {
         const key = (w.gram || '').toLowerCase().trim()
         const defData = data.definitions[key]
+        // Only set definition if it exists and is not null
+        const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
         return {
           ...w,
           gram: key, // Ensure gram is lowercase
-          definition: defData?.definition || undefined,
+          definition: definition,
           synonyms: defData?.synonyms || [],
           antonyms: defData?.antonyms || []
         }
@@ -126,10 +128,12 @@ export default function StudyPage() {
       const updatedPhrases = phrasesToLoad.map(p => {
         const key = (p.gram || '').toLowerCase().trim()
         const defData = data.definitions[key]
+        // Only set definition if it exists and is not null
+        const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
         return {
           ...p,
           gram: key, // Ensure gram is lowercase
-          definition: defData?.definition || undefined,
+          definition: definition,
           synonyms: defData?.synonyms || [],
           antonyms: defData?.antonyms || []
         }
@@ -148,11 +152,17 @@ export default function StudyPage() {
         // Only prepare words from JSON that don't have definitions - normalize to lowercase for comparison
         const newWords = updatedWords.filter(w => {
           const key = (w.gram || '').toLowerCase().trim()
-          return wordsFromJson.includes(key) && !data.definitions[key]?.definition
+          const defData = data.definitions[key]
+          // Check if definition is missing or null
+          const hasDefinition = defData?.definition && defData.definition !== null
+          return wordsFromJson.includes(key) && !hasDefinition
         })
         const newPhrases = updatedPhrases.filter(p => {
           const key = (p.gram || '').toLowerCase().trim()
-          return phrasesFromJson.includes(key) && !data.definitions[key]?.definition
+          const defData = data.definitions[key]
+          // Check if definition is missing or null
+          const hasDefinition = defData?.definition && defData.definition !== null
+          return phrasesFromJson.includes(key) && !hasDefinition
         })
         
         if (newWords.length > 0 || newPhrases.length > 0) {
@@ -166,10 +176,14 @@ export default function StudyPage() {
               // If this word was newly prepared, use the definition from DeepSeek response
               const newDefData = prepareResult.definitions[key]
               if (newDefData) {
+                // Use new definition if it exists and is not null, otherwise keep existing
+                const definition = (newDefData.definition && newDefData.definition !== null) 
+                  ? newDefData.definition 
+                  : (w.definition || undefined)
                 return {
                   ...w,
                   gram: key,
-                  definition: newDefData.definition || w.definition || undefined,
+                  definition: definition,
                   synonyms: newDefData.synonyms?.length > 0 ? newDefData.synonyms : (w.synonyms || []),
                   antonyms: newDefData.antonyms?.length > 0 ? newDefData.antonyms : (w.antonyms || [])
                 }
@@ -182,10 +196,14 @@ export default function StudyPage() {
               // If this phrase was newly prepared, use the definition from DeepSeek response
               const newDefData = prepareResult.definitions[key]
               if (newDefData) {
+                // Use new definition if it exists and is not null, otherwise keep existing
+                const definition = (newDefData.definition && newDefData.definition !== null) 
+                  ? newDefData.definition 
+                  : (p.definition || undefined)
                 return {
                   ...p,
                   gram: key,
-                  definition: newDefData.definition || p.definition || undefined,
+                  definition: definition,
                   synonyms: newDefData.synonyms?.length > 0 ? newDefData.synonyms : (p.synonyms || []),
                   antonyms: newDefData.antonyms?.length > 0 ? newDefData.antonyms : (p.antonyms || [])
                 }
