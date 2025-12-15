@@ -55,6 +55,10 @@ async function getDictionaryWords(): Promise<string[]> {
 
 function prioritizeWords(allWords: WordData[], priorityWords: string[], targetCount: number, priorityPercentage: number): { 
   words: WordData[], fromJson: string[], prioritizedCount: number } {
+  // Calculate target counts: 70% from priority, 30% from JSON
+  const priorityCount = Math.floor(targetCount * priorityPercentage)
+  const remainingCount = targetCount - priorityCount
+
   // Create a map for quick lookup - normalize all words to lowercase
   const wordMap = new Map<string, WordData>()
   allWords.forEach(w => {
@@ -65,12 +69,14 @@ function prioritizeWords(allWords: WordData[], priorityWords: string[], targetCo
     }
   })
 
-  // Get ALL priority words that exist in the data - use all available, not just up to 70%
+  // Get priority words that exist in the data - use up to priorityCount (70%)
+  // If we don't have enough priority words, use all available
   // Normalize to lowercase
   const prioritized: WordData[] = []
   const used = new Set<string>()
   
   for (const priorityWord of priorityWords) {
+    if (prioritized.length >= priorityCount) break // Stop at 70% target
     const key = priorityWord.toLowerCase().trim()
     if (wordMap.has(key) && !used.has(key)) {
       prioritized.push(wordMap.get(key)!)
@@ -79,6 +85,7 @@ function prioritizeWords(allWords: WordData[], priorityWords: string[], targetCo
   }
 
   // Calculate how many more words we need to reach targetCount
+  // This should be at least remainingCount (30%), but may be more if we didn't have enough priority words
   const neededFromJson = targetCount - prioritized.length
 
   // Fill remaining with random words from JSON (these may need DeepSeek)
