@@ -192,7 +192,7 @@ export default function StudyPage() {
       let step2PhrasesWithDefs = step2Phrases
       
       if (wordsWithoutDefs.length > 0 || phrasesWithoutDefs.length > 0) {
-        setLoadingStep('Preparing new definitions (DeepSeek)...')
+        setLoadingStep('Preparing new definitions (based on LLM)...')
         setLoadingProgress(65)
         const prepareResult = await prepareNewWordsFromJson(wordsWithoutDefs, phrasesWithoutDefs)
         
@@ -308,14 +308,14 @@ export default function StudyPage() {
       const wordsToSave = [
         ...step1WordsWithDefs.filter(w => {
           const key = (w.gram || '').toLowerCase().trim()
-          return !wordsFromJson.includes(key) && w.definition // Step 1 items that got definitions from DeepSeek
+          return !wordsFromJson.includes(key) && w.definition // Step 1 items that got definitions from LLM
         }),
         ...step2WordsWithDefs.filter(w => w.definition) // Step 2 items with definitions
       ]
       const phrasesToSave = [
         ...step1PhrasesWithDefs.filter(p => {
           const key = (p.gram || '').toLowerCase().trim()
-          return !phrasesFromJson.includes(key) && p.definition // Step 1 phrases that got definitions from DeepSeek
+          return !phrasesFromJson.includes(key) && p.definition // Step 1 phrases that got definitions from LLM
         }),
         ...step2PhrasesWithDefs.filter(p => p.definition) // Step 2 phrases with definitions
       ]
@@ -455,7 +455,7 @@ export default function StudyPage() {
               onClick={() => router.push('/')}
               className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
             >
-              ← Back to Menu
+              2 Back to Menu
             </button>
             
             <div className="flex items-center gap-4">

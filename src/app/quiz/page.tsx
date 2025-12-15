@@ -62,56 +62,54 @@ export default function QuizPage() {
         score: score || 0
       });
     } catch (error) {
-      console.error('Error submitting quiz:', error);
       alert('Failed to submit quiz. Please try again.');
     } finally {
       setSubmitting(false);
     }
   }, []); // No dependencies - uses refs instead
 
-  useEffect(() => {
-    // Check if user is logged in
-    const savedUser = localStorage.getItem('lexileapUser');
-    if (savedUser) {
-      try {
-        const userData = JSON.parse(savedUser);
-        setUser(userData);
-      } catch (error) {
-        console.error('Invalid user data:', error);
-        router.push('/');
-      }
-    } else {
-      router.push('/');
-    }
-    setLoading(false);
-  }, [router]);
-
-  // Timer effect
-  useEffect(() => {
-    if (!session?.id || session?.endTime) return;
-
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          // Time's up - auto submit
-          finishQuiz();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [session?.id, session?.endTime, finishQuiz]);
-
-  const startQuiz = async () => {
+  const startQuiz = useCallback(async () => {
     if (!user) return;
+    
+    // Check for selected words from URL or saved selection
+    const urlParams = new URLSearchParams(window.location.search)
+    const selectionParam = urlParams.get('selection')
+    let selectedWords: string[] = []
+    
+    if (selectionParam) {
+      try {
+        selectedWords = JSON.parse(decodeURIComponent(selectionParam))
+      } catch {
+        // Invalid selection parameter
+      }
+    }
+    
+    // If no selection in URL, try to get from saved selection
+    if (selectedWords.length === 0) {
+      try {
+        const response = await fetch(`/api/vocabulary/get-selection?userId=${encodeURIComponent(user.email)}`)
+        if (response.ok) {
+          const data = await response.json()
+          selectedWords = data.selectedWords || []
+        }
+      } catch (error) {
+        // Failed to load saved selection
+      }
+    }
+    
+    if (selectedWords.length === 0) {
+      alert('No words selected. Please go back to study page and select words.')
+      router.push('/study')
+      return
+    }
     
     setGenerating(true);
     setTimeLeft(600); // Reset timer
     try {
-      // Use SSE to stream generation progress and receive the session when complete
-      const es = new EventSource(`/api/quiz/generate?userId=${encodeURIComponent(user.email)}`);
+      // Use new endpoint that generates quiz from selected words
+      const es = new EventSource(
+        `/api/quiz/generate-from-selection?userId=${encodeURIComponent(user.email)}&words=${encodeURIComponent(JSON.stringify(selectedWords))}`
+      )
 
       const handleComplete = (e: MessageEvent) => {
         try {
@@ -132,15 +130,11 @@ export default function QuizPage() {
 
       es.addEventListener('complete', handleComplete as EventListener);
       es.addEventListener('error', handleError as EventListener);
-
-      // Optional: listen to progress events (start, bank, batch, word) to show UI feedback later
-      // es.addEventListener('word', (e) => {/* update progress */});
     } catch (error) {
-      console.error('Error starting generation stream:', error);
       setGenerating(false);
       alert('Failed to start quiz generation. Please try again.');
     }
-  };
+  }, [user, router]);
 
   const handleAnswer = (answerIndex: number) => {
     if (!session) return;
@@ -214,7 +208,7 @@ export default function QuizPage() {
             <button
               onClick={startQuiz}
               disabled={generating}
-              className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {generating ? 'Generating Quiz...' : 'Start Quiz'}
             </button>
@@ -236,7 +230,7 @@ export default function QuizPage() {
             <div className="space-x-4">
               <button
                 onClick={() => router.push('/')}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
               >
                 Back to Home
               </button>
@@ -293,7 +287,7 @@ export default function QuizPage() {
                       <button
                         key={index}
                         onClick={() => handleAnswer(index)}
-                        className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
+                        className={`w-full p-4 text-left rounded-lg border-2 transition-all cursor-pointer ${
                           session.answers[session.currentQuestion] === index
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300'
@@ -312,7 +306,7 @@ export default function QuizPage() {
                       {session.currentQuestion > 0 && (
                         <button
                           onClick={previousQuestion}
-                          className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                          className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 cursor-pointer"
                         >
                           ← Previous
                         </button>
@@ -321,7 +315,7 @@ export default function QuizPage() {
                     <button
                       onClick={nextQuestion}
                       disabled={session.answers[session.currentQuestion] === null || submitting}
-                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       {submitting ? 'Submitting...' : (session.currentQuestion === session.questions.length - 1 ? 'Finish Quiz' : 'Next Question')}
                     </button>
@@ -331,7 +325,7 @@ export default function QuizPage() {
                   <div className="flex justify-start">
                     <button
                       onClick={() => router.push('/')}
-                      className="px-6 py-3 text-gray-600 hover:text-gray-800"
+                      className="px-6 py-3 text-gray-600 hover:text-gray-800 cursor-pointer"
                     >
                       ← Back to Home
                     </button>
