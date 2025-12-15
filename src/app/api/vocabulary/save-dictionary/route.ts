@@ -55,10 +55,9 @@ export async function POST(request: Request) {
         logger.info(`Saving dictionary entry for "${text}": definition=${!!entry.definition}, synonyms=${entry.synonyms.length}, antonyms=${entry.antonyms.length}, frequency=${entry.frequency}`)
 
         if (doc.exists) {
-          // Update existing entry
-          await docRef.set(firestoreEntry, { merge: true })
-          updated++
-          logger.info(`Updated dictionary entry for "${text}"`)
+          // Skip existing entries to avoid unnecessary updates
+          skipped++
+          logger.info(`Skipping existing dictionary entry for "${text}"`)
         } else {
           // Create new entry
           await docRef.set(firestoreEntry)

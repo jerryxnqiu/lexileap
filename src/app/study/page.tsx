@@ -17,6 +17,8 @@ export default function StudyPage() {
   const [words, setWords] = useState<VocabularyItem[]>([])
   const [phrases, setPhrases] = useState<VocabularyItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState<number>(0)
+  const [loadingStep, setLoadingStep] = useState<string>('Initializing...')
   const [timeRemaining, setTimeRemaining] = useState(MAX_STUDY_TIME)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
 
@@ -62,6 +64,8 @@ export default function StudyPage() {
     if (!user) return
     
     try {
+      setLoadingProgress(5)
+      setLoadingStep('Loading vocabulary selection...')
       const response = await fetch(`/api/vocabulary/load?userId=${encodeURIComponent(user.email)}`)
       if (!response.ok) throw new Error('Failed to load vocabulary')
       
@@ -78,10 +82,14 @@ export default function StudyPage() {
       setWords(initialWords)
       setPhrases(initialPhrases)
       
+      setLoadingProgress(25)
+      setLoadingStep('Loading definitions from dictionary...')
       // Automatically load definitions from database and prepare new ones from JSON
       await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson)
       
       setLoading(false)
+      setLoadingProgress(100)
+      setLoadingStep('Ready')
       // Start timer immediately when content is loaded
       setIsTimerRunning(true)
     } catch (error) {
@@ -103,6 +111,7 @@ export default function StudyPage() {
   ) => {
     try {
       // Separate Step 1 items (from database) and Step 2 items (from JSON)
+      setLoadingStep('Applying dictionary definitions...')
       const step1Words = wordsToLoad.filter(w => {
         const key = (w.gram || '').toLowerCase().trim()
         return !wordsFromJson.includes(key)
@@ -127,6 +136,7 @@ export default function StudyPage() {
       let step1PhrasesWithDefs = step1Phrases
       
       if (step1Words.length > 0 || step1Phrases.length > 0) {
+        setLoadingProgress(40)
         const step1Texts = [...step1Words, ...step1Phrases].map(item => (item.gram || '').toLowerCase().trim())
         const response = await fetch('/api/vocabulary/definitions', {
           method: 'POST',
@@ -182,9 +192,12 @@ export default function StudyPage() {
       let step2PhrasesWithDefs = step2Phrases
       
       if (wordsWithoutDefs.length > 0 || phrasesWithoutDefs.length > 0) {
+        setLoadingStep('Preparing new definitions (DeepSeek)...')
+        setLoadingProgress(65)
         const prepareResult = await prepareNewWordsFromJson(wordsWithoutDefs, phrasesWithoutDefs)
         
         if (prepareResult?.definitions) {
+          setLoadingProgress(85)
           // Update Step 1 words that didn't have definitions
           step1WordsWithDefs = step1WordsWithDefs.map(w => {
             const key = (w.gram || '').toLowerCase().trim()
@@ -410,9 +423,20 @@ export default function StudyPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 font-medium">Please wait while we are loading from database...</p>
+          <div className="relative w-56 h-56 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200 animate-pulse"></div>
+            <div className="absolute inset-4 rounded-full bg-white shadow-inner flex items-center justify-center">
+              <div className="text-3xl font-bold text-indigo-700">{Math.min(loadingProgress, 100)}%</div>
+            </div>
+          </div>
+          <p className="text-lg text-gray-700 font-semibold">{loadingStep}</p>
           <p className="text-sm text-gray-500 mt-2">Preparing your personalized vocabulary list</p>
+          <div className="mt-4 w-64 mx-auto h-2 rounded-full bg-indigo-100 overflow-hidden">
+            <div
+              className="h-full bg-indigo-500 transition-all duration-300"
+              style={{ width: `${Math.min(loadingProgress, 100)}%` }}
+            ></div>
+          </div>
         </div>
       </div>
     )
@@ -426,7 +450,7 @@ export default function StudyPage() {
       
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6 flex items-center justify-between sticky top-0 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
             <button 
               onClick={() => router.push('/')}
               className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
