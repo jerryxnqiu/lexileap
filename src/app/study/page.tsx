@@ -122,7 +122,7 @@ export default function StudyPage() {
       })
       
       // Step 1: Load definitions from database only for Step 1 items (from database)
-      // These items already have definitions in the database
+      // These items should have definitions in the database, but some might be missing
       let step1WordsWithDefs = step1Words
       let step1PhrasesWithDefs = step1Phrases
       
@@ -167,14 +167,62 @@ export default function StudyPage() {
         }
       }
       
-      // Step 2: Prepare definitions for Step 2 items (from JSON) using DeepSeek
+      // Step 2: Prepare definitions for ALL items without definitions using DeepSeek
+      // This includes Step 2 items (from JSON) AND Step 1 items that don't have definitions
+      const wordsWithoutDefs = [
+        ...step1WordsWithDefs.filter(w => !w.definition),
+        ...step2Words
+      ]
+      const phrasesWithoutDefs = [
+        ...step1PhrasesWithDefs.filter(p => !p.definition),
+        ...step2Phrases
+      ]
+      
       let step2WordsWithDefs = step2Words
       let step2PhrasesWithDefs = step2Phrases
       
-      if (step2Words.length > 0 || step2Phrases.length > 0) {
-        const prepareResult = await prepareNewWordsFromJson(step2Words, step2Phrases)
+      if (wordsWithoutDefs.length > 0 || phrasesWithoutDefs.length > 0) {
+        const prepareResult = await prepareNewWordsFromJson(wordsWithoutDefs, phrasesWithoutDefs)
         
         if (prepareResult?.definitions) {
+          // Update Step 1 words that didn't have definitions
+          step1WordsWithDefs = step1WordsWithDefs.map(w => {
+            const key = (w.gram || '').toLowerCase().trim()
+            const newDefData = prepareResult.definitions[key]
+            if (newDefData) {
+              const definition = (newDefData.definition && newDefData.definition !== null) 
+                ? newDefData.definition 
+                : undefined
+              return {
+                ...w,
+                gram: key,
+                definition: definition,
+                synonyms: newDefData.synonyms || [],
+                antonyms: newDefData.antonyms || []
+              }
+            }
+            return w
+          })
+          
+          // Update Step 1 phrases that didn't have definitions
+          step1PhrasesWithDefs = step1PhrasesWithDefs.map(p => {
+            const key = (p.gram || '').toLowerCase().trim()
+            const newDefData = prepareResult.definitions[key]
+            if (newDefData) {
+              const definition = (newDefData.definition && newDefData.definition !== null) 
+                ? newDefData.definition 
+                : undefined
+              return {
+                ...p,
+                gram: key,
+                definition: definition,
+                synonyms: newDefData.synonyms || [],
+                antonyms: newDefData.antonyms || []
+              }
+            }
+            return p
+          })
+          
           // Update Step 2 words with definitions from DeepSeek
           step2WordsWithDefs = step2Words.map(w => {
             const key = (w.gram || '').toLowerCase().trim()
@@ -241,10 +289,26 @@ export default function StudyPage() {
       setWords(finalWords)
       setPhrases(finalPhrases)
       
-      // Step 5: Save only Step 2 items (from JSON) to dictionary
+      // Step 5: Save all newly prepared items to dictionary
+      // This includes Step 1 items without definitions AND Step 2 items (from JSON)
       // The prepare endpoint already saves them in background, but we save here to ensure consistency
-      if (step2WordsWithDefs.length > 0 || step2PhrasesWithDefs.length > 0) {
-        saveAllToDictionary(step2WordsWithDefs, step2PhrasesWithDefs).catch(() => {
+      const wordsToSave = [
+        ...step1WordsWithDefs.filter(w => {
+          const key = (w.gram || '').toLowerCase().trim()
+          return !wordsFromJson.includes(key) && w.definition // Step 1 items that got definitions from DeepSeek
+        }),
+        ...step2WordsWithDefs.filter(w => w.definition) // Step 2 items with definitions
+      ]
+      const phrasesToSave = [
+        ...step1PhrasesWithDefs.filter(p => {
+          const key = (p.gram || '').toLowerCase().trim()
+          return !phrasesFromJson.includes(key) && p.definition // Step 1 phrases that got definitions from DeepSeek
+        }),
+        ...step2PhrasesWithDefs.filter(p => p.definition) // Step 2 phrases with definitions
+      ]
+      
+      if (wordsToSave.length > 0 || phrasesToSave.length > 0) {
+        saveAllToDictionary(wordsToSave, phrasesToSave).catch(() => {
           // Error handled silently - items are already being saved by prepare endpoint
         })
       }

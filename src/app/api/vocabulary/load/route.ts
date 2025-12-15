@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getStorage, getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
+import { WordData } from '@/types/dictionary'
 
 export const dynamic = 'force-dynamic'
-
-interface WordItem {
-  gram: string
-  freq: number
-}
 
 async function getUserWrongWords(userId: string): Promise<string[]> {
   try {
@@ -57,17 +53,10 @@ async function getDictionaryWords(): Promise<string[]> {
   }
 }
 
-function prioritizeWords(
-  allWords: WordItem[],
-  priorityWords: string[],
-  targetCount: number,
-  priorityPercentage: number
-): { words: WordItem[], fromJson: string[] } {
-  const priorityCount = Math.floor(targetCount * priorityPercentage)
-  const remainingCount = targetCount - priorityCount
-
+function prioritizeWords(allWords: WordData[], priorityWords: string[], targetCount: number, priorityPercentage: number): { 
+  words: WordData[], fromJson: string[], prioritizedCount: number } {
   // Create a map for quick lookup - normalize all words to lowercase
-  const wordMap = new Map<string, WordItem>()
+  const wordMap = new Map<string, WordData>()
   allWords.forEach(w => {
     const key = w.gram.toLowerCase().trim()
     // Store with lowercase gram
@@ -76,12 +65,12 @@ function prioritizeWords(
     }
   })
 
-  // Get priority words that exist in the data - normalize to lowercase
-  const prioritized: WordItem[] = []
+  // Get ALL priority words that exist in the data - use all available, not just up to 70%
+  // Normalize to lowercase
+  const prioritized: WordData[] = []
   const used = new Set<string>()
   
   for (const priorityWord of priorityWords) {
-    if (prioritized.length >= priorityCount) break
     const key = priorityWord.toLowerCase().trim()
     if (wordMap.has(key) && !used.has(key)) {
       prioritized.push(wordMap.get(key)!)
@@ -89,13 +78,16 @@ function prioritizeWords(
     }
   }
 
-  // Fill remaining with random words (these are from JSON and may need DeepSeek)
-  const remaining: WordItem[] = []
+  // Calculate how many more words we need to reach targetCount
+  const neededFromJson = targetCount - prioritized.length
+
+  // Fill remaining with random words from JSON (these may need DeepSeek)
+  const remaining: WordData[] = []
   const fromJson: string[] = []
   const shuffled = [...allWords].sort(() => Math.random() - 0.5)
   
   for (const word of shuffled) {
-    if (remaining.length >= remainingCount) break
+    if (remaining.length >= neededFromJson) break
     const key = word.gram.toLowerCase().trim()
     if (!used.has(key)) {
       remaining.push({ ...word, gram: key }) // Store with lowercase
@@ -106,16 +98,16 @@ function prioritizeWords(
 
   const result = [...prioritized, ...remaining]
   
-  // If we don't have enough words, fill with more random words from allWords
+  // If we still don't have enough words, fill with more random words from allWords
   if (result.length < targetCount) {
-    const needed = targetCount - result.length
+    const additionalNeeded = targetCount - result.length
     const additional = [...allWords]
       .sort(() => Math.random() - 0.5)
       .filter(w => {
         const key = w.gram.toLowerCase().trim()
         return !used.has(key)
       })
-      .slice(0, needed)
+      .slice(0, additionalNeeded)
       .map(w => {
         const key = w.gram.toLowerCase().trim()
         return { ...w, gram: key } // Normalize to lowercase
@@ -132,7 +124,11 @@ function prioritizeWords(
   
   // Ensure all words in result are lowercase
   const normalizedResult = result.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
-  return { words: normalizedResult.slice(0, targetCount), fromJson }
+  return { 
+    words: normalizedResult.slice(0, targetCount), 
+    fromJson,
+    prioritizedCount: prioritized.length // Return count of priority words actually used
+  }
 }
 
 export async function GET(request: Request) {
@@ -144,7 +140,7 @@ export async function GET(request: Request) {
     const bucket = storage.bucket()
 
     // Load words.json (1gram)
-    let allWords: WordItem[] = []
+    let allWords: WordData[] = []
     try {
       const wordsFile = bucket.file('data/words.json')
       const [exists] = await wordsFile.exists()
@@ -158,7 +154,7 @@ export async function GET(request: Request) {
     }
 
     // Load phrases.json (2-5gram)
-    let allPhrases: WordItem[] = []
+    let allPhrases: WordData[] = []
     try {
       const phrasesFile = bucket.file('data/phrases.json')
       const [exists] = await phrasesFile.exists()
@@ -175,8 +171,8 @@ export async function GET(request: Request) {
     const PHRASES_TARGET = 50
     const PRIORITY_PERCENTAGE = 0.7 // 70%
 
-    let words: WordItem[] = []
-    let phrases: WordItem[] = []
+    let words: WordData[] = []
+    let phrases: WordData[] = []
 
     let wordsFromJson: string[] = []
     let phrasesFromJson: string[] = []
@@ -191,17 +187,17 @@ export async function GET(request: Request) {
       
       logger.info(`Found ${wrongWords.length} wrong words, ${dictionaryWords.length} dictionary words for user ${userId}`)
 
-      // Prioritize words (70% from wrong/dictionary, 30% new from JSON)
+      // Prioritize words: use ALL available wrong/dictionary words, then fill rest from JSON
       const wordsResult = prioritizeWords(allWords, priorityWords, WORDS_TARGET, PRIORITY_PERCENTAGE)
       words = wordsResult.words
       wordsFromJson = wordsResult.fromJson
-      logger.info(`Prioritized words: ${words.length} total (target: ${WORDS_TARGET}), ${wordsFromJson.length} from JSON`)
+      logger.info(`Prioritized words: ${words.length} total (target: ${WORDS_TARGET}), ${wordsResult.prioritizedCount} from wrong/dictionary, ${wordsFromJson.length} from JSON`)
       
-      // Prioritize phrases (70% from wrong/dictionary, 30% new from JSON)
+      // Prioritize phrases: use ALL available wrong/dictionary words, then fill rest from JSON
       const phrasesResult = prioritizeWords(allPhrases, priorityWords, PHRASES_TARGET, PRIORITY_PERCENTAGE)
       phrases = phrasesResult.words
       phrasesFromJson = phrasesResult.fromJson
-      logger.info(`Prioritized phrases: ${phrases.length} total (target: ${PHRASES_TARGET}), ${phrasesFromJson.length} from JSON`)
+      logger.info(`Prioritized phrases: ${phrases.length} total (target: ${PHRASES_TARGET}), ${phrasesResult.prioritizedCount} from wrong/dictionary, ${phrasesFromJson.length} from JSON`)
     } else {
       // No userId, all words are from JSON - normalize to lowercase
       words = [...allWords]
