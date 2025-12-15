@@ -84,12 +84,14 @@ export default function StudyPage() {
       
       setLoadingProgress(25)
       setLoadingStep('Loading definitions from dictionary...')
-      // Automatically load definitions from database and prepare new ones from JSON
+
+      // Automatically load definitions from database and prepare new ones for JSON items that don't have definitions
       await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson)
       
       setLoading(false)
       setLoadingProgress(100)
       setLoadingStep('Ready')
+
       // Start timer immediately when content is loaded
       setIsTimerRunning(true)
     } catch (error) {
@@ -103,12 +105,7 @@ export default function StudyPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const loadDefinitions = async (
-    wordsToLoad: VocabularyItem[] = words, 
-    phrasesToLoad: VocabularyItem[] = phrases,
-    wordsFromJson: string[] = [],
-    phrasesFromJson: string[] = []
-  ) => {
+  const loadDefinitions = async (wordsToLoad: VocabularyItem[] = words, phrasesToLoad: VocabularyItem[] = phrases, wordsFromJson: string[] = [], phrasesFromJson: string[] = []) => {
     try {
       // Separate Step 1 items (from database) and Step 2 items (from JSON)
       setLoadingStep('Applying dictionary definitions...')
@@ -302,29 +299,6 @@ export default function StudyPage() {
       setWords(finalWords)
       setPhrases(finalPhrases)
       
-      // Step 5: Save all newly prepared items to dictionary
-      // This includes Step 1 items without definitions AND Step 2 items (from JSON)
-      // The prepare endpoint already saves them in background, but we save here to ensure consistency
-      const wordsToSave = [
-        ...step1WordsWithDefs.filter(w => {
-          const key = (w.gram || '').toLowerCase().trim()
-          return !wordsFromJson.includes(key) && w.definition // Step 1 items that got definitions from LLM
-        }),
-        ...step2WordsWithDefs.filter(w => w.definition) // Step 2 items with definitions
-      ]
-      const phrasesToSave = [
-        ...step1PhrasesWithDefs.filter(p => {
-          const key = (p.gram || '').toLowerCase().trim()
-          return !phrasesFromJson.includes(key) && p.definition // Step 1 phrases that got definitions from LLM
-        }),
-        ...step2PhrasesWithDefs.filter(p => p.definition) // Step 2 phrases with definitions
-      ]
-      
-      if (wordsToSave.length > 0 || phrasesToSave.length > 0) {
-        saveAllToDictionary(wordsToSave, phrasesToSave).catch(() => {
-          // Error handled silently - items are already being saved by prepare endpoint
-        })
-      }
     } catch (error) {
       // Error handled silently - definitions will be missing
     }
@@ -352,39 +326,6 @@ export default function StudyPage() {
     } catch (error) {
       // Error handled silently - definitions will be missing
       return null
-    }
-  }
-
-  const saveAllToDictionary = async (wordsToSave: VocabularyItem[] = words, phrasesToSave: VocabularyItem[] = phrases) => {
-    try {
-      // Get all items with their definitions, synonyms, and antonyms
-      const allItems = [...wordsToSave, ...phrasesToSave].map(item => ({
-        gram: (item.gram || '').toLowerCase().trim(),
-        freq: item.freq || 0,
-        definition: item.definition || undefined,
-        synonyms: item.synonyms || [],
-        antonyms: item.antonyms || []
-      }))
-
-      if (allItems.length === 0) {
-        return
-      }
-
-      const response = await fetch('/api/vocabulary/save-dictionary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: allItems })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(`Failed to save to dictionary: ${errorData.error || response.statusText}`)
-      }
-      
-      await response.json()
-    } catch (error) {
-      // Error handled silently - items may not be saved but study can continue
-      // Server-side logging will capture the error
     }
   }
 
@@ -448,14 +389,14 @@ export default function StudyPage() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100">
       <Header user={user} onLogout={() => { localStorage.removeItem('lexileapUser'); router.push('/'); }} />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-4">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-6 flex items-center justify-between sticky top-0 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
+          <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
             <button 
               onClick={() => router.push('/')}
               className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
             >
-              2 Back to Menu
+              ← Back to Menu
             </button>
             
             <div className="flex items-center gap-4">
