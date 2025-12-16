@@ -233,7 +233,6 @@ export async function POST() {
             synonyms,
             antonyms,
             frequency: wordData.freq,
-            synonymsProcessed: true, // DeepSeek provides synonyms/antonyms in one call
             lastUpdated: new Date()
           }
           
