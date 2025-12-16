@@ -1,166 +1,248 @@
 import { NextResponse } from 'next/server'
 import { getStorage, getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
-import { WordData } from '@/types/dictionary'
+import { WordData, DictionaryEntry } from '@/types/dictionary'
 
 export const dynamic = 'force-dynamic'
 
-/*
-step 1:
-GET:       /api/vocabulary/load
-Purpose:  Prepare the 250 study items (200 words + 50 phrases) for a user.
-Input:    "userId" (query, optional but recommended).
-Output:   { words, phrases, wordCount, phraseCount, fromJson: { words, phrases } } (all gram lowercased).
 
-What it does:
-- Loads:
-  - data/words.json (1‑gram high‑frequency words from Google Ngrams),
-  - data/phrases.json (2–5‑gram phrases).
-  - If userId is present:
-    - Finds the user’s wrong words from "user_quiz_attempts" collection.
-    - Gets words that already have definitions from "dictionary" collection.
-    - Combines both into "priorityWords".
-    - Uses "prioritizeWords" to:
-      - Pick up to 70% from "wrong/dictionary" (“priority”),
-      - Fill the remaining 30% from "data/words.json" and "data/phrases.json" (“new” words/phrases),
-      - Track which came from JSON via fromJson.words / fromJson.phrases.
-    - If no userId: random 200 words + 50 phrases purely from "data/words.json" and "data/phrases.json".
-*/
-
-
-async function getUserWrongWords(userId: string): Promise<string[]> {
+// Returns word accuracy data for this user based on quiz attempts.
+async function getUserWordAccuracy(userId: string): Promise<Record<string, { total: number; wrong: number; accuracy: number }>> {
   try {
     const db = await getDb()
     const attemptsSnap = await db.collection('user_quiz_attempts')
       .where('userId', '==', userId)
       .get()
 
-    const wrongWords = new Set<string>()
+    type Agg = { total: number; wrong: number }
+    const agg: Record<string, Agg> = {}
+
     attemptsSnap.forEach(doc => {
       const data = doc.data()
       const answers = Array.isArray(data?.answers) ? data.answers : []
       for (const answer of answers) {
-        if (answer?.isCorrect === false && answer?.word) {
-          // Normalize to lowercase
-          wrongWords.add((answer.word || '').toLowerCase().trim())
+        const rawWord = (answer?.word || '') as string
+        const word = rawWord.toLowerCase().trim()
+        if (!word) continue
+
+        const isCorrect = answer?.isCorrect === true
+
+        if (!agg[word]) {
+          agg[word] = { total: 0, wrong: 0 }
         }
+        agg[word].total += 1
+        if (!isCorrect) agg[word].wrong += 1
       }
     })
 
-    return Array.from(wrongWords)
+    // Convert to accuracy records
+    const accuracy: Record<string, { total: number; wrong: number; accuracy: number }> = {}
+    for (const [word, stats] of Object.entries(agg)) {
+      if (stats.total > 0) {
+        accuracy[word] = {
+          total: stats.total,
+          wrong: stats.wrong,
+          accuracy: (stats.total - stats.wrong) / stats.total
+        }
+      }
+    }
+
+    return accuracy
   } catch (error) {
-    logger.error('Failed to get user wrong words:', error instanceof Error ? error : new Error(String(error)))
+    logger.error('Failed to get user word accuracy:', error instanceof Error ? error : new Error(String(error)))
+    return {}
+  }
+}
+
+
+// Returns only "strong" words (high accuracy) for this user based on quiz attempts.
+async function getUserStrongWords(userId: string): Promise<string[]> {
+  try {
+    const accuracy = await getUserWordAccuracy(userId)
+    
+    // Treat words with wrong-rate < 20% (accuracy >= 80%) as "strong"
+    const STRONG_THRESHOLD = 0.8
+    const strongWords = Object.entries(accuracy)
+      .filter(([, v]) => v.total > 0 && v.accuracy >= STRONG_THRESHOLD)
+      .map(([word]) => word)
+
+    return strongWords
+  } catch (error) {
+    logger.error('Failed to get user strong words:', error instanceof Error ? error : new Error(String(error)))
     return []
   }
 }
 
-async function getDictionaryWords(): Promise<string[]> {
+
+// Returns dictionary entries (excluding strong words if userId is provided)
+async function getDictionaryWords(userId?: string): Promise<DictionaryEntry[]> {
   try {
     const db = await getDb()
     const snapshot = await db.collection('dictionary')
       .where('definition', '!=', null)
-      .limit(10000)
+      .limit(1000)
       .get()
 
-    const words: string[] = []
+    const entries: DictionaryEntry[] = []
     snapshot.forEach(doc => {
-      // Dictionary keys should already be lowercase, but normalize to be sure
+      const data = doc.data()
       const word = (doc.id || '').toLowerCase().trim()
-      if (word) words.push(word)
+      if (word) {
+        entries.push({
+          word: word,
+          definition: data.definition || undefined,
+          synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
+          antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
+          frequency: typeof data.frequency === 'number' ? data.frequency : 0,
+          lastUpdated: data.lastUpdated?.toDate() || new Date()
+        })
+      }
     })
 
-    return words
+    // If userId is provided, exclude strong words (user already knows these well)
+    if (userId) {
+      const strongWords = await getUserStrongWords(userId)
+      const strongWordsSet = new Set(strongWords.map(w => w.toLowerCase().trim()))
+      return entries.filter(entry => !strongWordsSet.has(entry.word.toLowerCase().trim()))
+    }
+
+    return entries
   } catch (error) {
     logger.error('Failed to get dictionary words:', error instanceof Error ? error : new Error(String(error)))
     return []
   }
 }
 
-function prioritizeWords(allWords: WordData[], priorityWords: string[], targetCount: number, priorityPercentage: number): { 
-  words: WordData[], fromJson: string[], prioritizedCount: number } {
-  // Calculate target counts: 70% from priority, 30% from JSON
-  const priorityCount = Math.floor(targetCount * priorityPercentage)
-  const remainingCount = targetCount - priorityCount
 
-  // Create a map for quick lookup - normalize all words to lowercase
+// Helper function to determine if a string is a word (1 gram) or phrase (>1 gram)
+function isWord(text: string): boolean {
+  const trimmed = text.trim()
+  // Count words by splitting on whitespace - if more than 1 word, it's a phrase
+  return trimmed.split(/\s+/).length === 1
+}
+
+
+// Prioritizes words and phrases from "priorityWords" (dictionary entries) and fills the rest from JSON
+// Uses word length (1 gram = word, >1 gram = phrase) to distinguish between them
+function prioritizeWords(
+  allWords: WordData[], 
+  allPhrases: WordData[], 
+  priorityWords: string[], 
+  wordTargetCount: number, 
+  phrasesTargetCount: number, 
+  priorityPercentage: number
+): { 
+  words: WordData[], 
+  phrases: WordData[], 
+  wordsFromJson: string[], 
+  phrasesFromJson: string[], 
+  prioritizedWordsCount: number,
+  prioritizedPhrasesCount: number
+} {
+  // Create maps for quick lookup - normalize all to lowercase
   const wordMap = new Map<string, WordData>()
   allWords.forEach(w => {
     const key = w.gram.toLowerCase().trim()
-    // Store with lowercase gram
     if (!wordMap.has(key)) {
       wordMap.set(key, { ...w, gram: key })
     }
   })
 
-  // Get priority words that exist in the data - use up to priorityCount (70%)
-  // If we don't have enough priority words, use all available
-  // Normalize to lowercase
-  const prioritized: WordData[] = []
-  const used = new Set<string>()
+  const phraseMap = new Map<string, WordData>()
+  allPhrases.forEach(p => {
+    const key = p.gram.toLowerCase().trim()
+    if (!phraseMap.has(key)) {
+      phraseMap.set(key, { ...p, gram: key })
+    }
+  })
+
+  // Separate priority words into words and phrases
+  const priorityWordsList: string[] = []
+  const priorityPhrasesList: string[] = []
   
   for (const priorityWord of priorityWords) {
-    if (prioritized.length >= priorityCount) break // Stop at 70% target
     const key = priorityWord.toLowerCase().trim()
-    if (wordMap.has(key) && !used.has(key)) {
-      prioritized.push(wordMap.get(key)!)
-      used.add(key)
+    if (isWord(key)) {
+      priorityWordsList.push(key)
+    } else {
+      priorityPhrasesList.push(key)
     }
   }
 
-  // Calculate how many more words we need to reach targetCount
-  // This should be at least remainingCount (30%), but may be more if we didn't have enough priority words
-  const neededFromJson = targetCount - prioritized.length
+  // Calculate target counts: 70% from priority, 30% from JSON
+  const wordPriorityCount = Math.floor(wordTargetCount * priorityPercentage)
+  const phrasePriorityCount = Math.floor(phrasesTargetCount * priorityPercentage)
 
-  // Fill remaining with random words from JSON (these may need DeepSeek)
-  const remaining: WordData[] = []
-  const fromJson: string[] = []
-  const shuffled = [...allWords].sort(() => Math.random() - 0.5)
+  // Process words
+  const prioritizedWords: WordData[] = []
+  const usedWords = new Set<string>()
   
-  for (const word of shuffled) {
-    if (remaining.length >= neededFromJson) break
+  for (const priorityWord of priorityWordsList) {
+    if (prioritizedWords.length >= wordPriorityCount) break
+    const key = priorityWord.toLowerCase().trim()
+    if (wordMap.has(key) && !usedWords.has(key)) {
+      prioritizedWords.push(wordMap.get(key)!)
+      usedWords.add(key)
+    }
+  }
+
+  const remainingWords: WordData[] = []
+  const wordsFromJson: string[] = []
+  const shuffledWords = [...allWords].sort(() => Math.random() - 0.5)
+  
+  for (const word of shuffledWords) {
+    if (prioritizedWords.length + remainingWords.length >= wordTargetCount) break
     const key = word.gram.toLowerCase().trim()
-    if (!used.has(key)) {
-      remaining.push({ ...word, gram: key }) // Store with lowercase
-      fromJson.push(key) // Track words from JSON
-      used.add(key)
+    if (!usedWords.has(key)) {
+      remainingWords.push({ ...word, gram: key })
+      wordsFromJson.push(key)
+      usedWords.add(key)
     }
   }
 
-  const result = [...prioritized, ...remaining]
+  // Process phrases
+  const prioritizedPhrases: WordData[] = []
+  const usedPhrases = new Set<string>()
   
-  // If we still don't have enough words, fill with more random words from allWords
-  if (result.length < targetCount) {
-    const additionalNeeded = targetCount - result.length
-    const additional = [...allWords]
-      .sort(() => Math.random() - 0.5)
-      .filter(w => {
-        const key = w.gram.toLowerCase().trim()
-        return !used.has(key)
-      })
-      .slice(0, additionalNeeded)
-      .map(w => {
-        const key = w.gram.toLowerCase().trim()
-        return { ...w, gram: key } // Normalize to lowercase
-      })
-    
-    additional.forEach(w => {
-      const key = w.gram.toLowerCase().trim()
-      used.add(key)
-      fromJson.push(key) // Additional words are from JSON
-    })
-    
-    result.push(...additional)
+  for (const priorityPhrase of priorityPhrasesList) {
+    if (prioritizedPhrases.length >= phrasePriorityCount) break
+    const key = priorityPhrase.toLowerCase().trim()
+    if (phraseMap.has(key) && !usedPhrases.has(key)) {
+      prioritizedPhrases.push(phraseMap.get(key)!)
+      usedPhrases.add(key)
+    }
   }
+
+  const remainingPhrases: WordData[] = []
+  const phrasesFromJson: string[] = []
+  const shuffledPhrases = [...allPhrases].sort(() => Math.random() - 0.5)
   
-  // Ensure all words in result are lowercase
-  const normalizedResult = result.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
+  for (const phrase of shuffledPhrases) {
+    if (prioritizedPhrases.length + remainingPhrases.length >= phrasesTargetCount) break
+    const key = phrase.gram.toLowerCase().trim()
+    if (!usedPhrases.has(key)) {
+      remainingPhrases.push({ ...phrase, gram: key })
+      phrasesFromJson.push(key)
+      usedPhrases.add(key)
+    }
+  }
+
+  const finalWords = [...prioritizedWords, ...remainingWords]
+  const finalPhrases = [...prioritizedPhrases, ...remainingPhrases]
+  
   return { 
-    words: normalizedResult.slice(0, targetCount), 
-    fromJson,
-    prioritizedCount: prioritized.length // Return count of priority words actually used
+    words: finalWords.slice(0, wordTargetCount).map(w => ({ ...w, gram: w.gram.toLowerCase().trim() })),
+    phrases: finalPhrases.slice(0, phrasesTargetCount).map(p => ({ ...p, gram: p.gram.toLowerCase().trim() })),
+    wordsFromJson,
+    phrasesFromJson,
+    prioritizedWordsCount: prioritizedWords.length,
+    prioritizedPhrasesCount: prioritizedPhrases.length
   }
 }
 
+
+// Loads vocabulary items for a user (or random items if no userId is provided)
+// Returns: { words, phrases, wordCount, phraseCount, fromJson: { words, phrases } } (all gram lowercased)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -206,28 +288,37 @@ export async function GET(request: Request) {
 
     let wordsFromJson: string[] = []
     let phrasesFromJson: string[] = []
+    let matchingDictionaryEntries: DictionaryEntry[] = []
 
     if (userId) {
-      // Get user's wrong words and dictionary words
-      const wrongWords = await getUserWrongWords(userId)
-      const dictionaryWords = await getDictionaryWords()
+      // Get dictionary entries (excluding strong words - all remaining are candidates for re-testing)
+      const dictionaryEntries = await getDictionaryWords(userId) // Excludes strong words internally
       
-      // Combine wrong words and dictionary words for priority
-      const priorityWords = Array.from(new Set([...wrongWords, ...dictionaryWords]))
+      // Extract word strings for prioritization (includes both words and phrases)
+      const priorityWords = dictionaryEntries.map(entry => entry.word)
       
-      logger.info(`Found ${wrongWords.length} wrong words, ${dictionaryWords.length} dictionary words for user ${userId}`)
+      logger.info(`Found ${dictionaryEntries.length} dictionary entries (excluding strong words) for user ${userId}`)
 
-      // Prioritize words: use ALL available wrong/dictionary words, then fill rest from JSON
-      const wordsResult = prioritizeWords(allWords, priorityWords, WORDS_TARGET, PRIORITY_PERCENTAGE)
-      words = wordsResult.words
-      wordsFromJson = wordsResult.fromJson
-      logger.info(`Prioritized words: ${words.length} total (target: ${WORDS_TARGET}), ${wordsResult.prioritizedCount} from wrong/dictionary, ${wordsFromJson.length} from JSON`)
+      // Prioritize words and phrases together: use dictionary entries (excluding strong), then fill rest from JSON
+      const result = prioritizeWords(allWords, allPhrases, priorityWords, WORDS_TARGET, PHRASES_TARGET, PRIORITY_PERCENTAGE)
+      words = result.words
+      phrases = result.phrases
+      wordsFromJson = result.wordsFromJson
+      phrasesFromJson = result.phrasesFromJson
+
+      // Select dictionary entries that match the selected words and phrases
+      const selectedKeys = new Set<string>()
+      words.forEach(w => selectedKeys.add(w.gram.toLowerCase().trim()))
+      phrases.forEach(p => selectedKeys.add(p.gram.toLowerCase().trim()))
       
-      // Prioritize phrases: use ALL available wrong/dictionary words, then fill rest from JSON
-      const phrasesResult = prioritizeWords(allPhrases, priorityWords, PHRASES_TARGET, PRIORITY_PERCENTAGE)
-      phrases = phrasesResult.words
-      phrasesFromJson = phrasesResult.fromJson
-      logger.info(`Prioritized phrases: ${phrases.length} total (target: ${PHRASES_TARGET}), ${phrasesResult.prioritizedCount} from wrong/dictionary, ${phrasesFromJson.length} from JSON`)
+      matchingDictionaryEntries = dictionaryEntries.filter(entry => 
+        selectedKeys.has(entry.word.toLowerCase().trim())
+      )
+
+      logger.info(`Prioritized words: ${words.length} total (target: ${WORDS_TARGET}) = ${result.prioritizedWordsCount} from dictionary + ${wordsFromJson.length} from JSON`)
+      logger.info(`Prioritized phrases: ${phrases.length} total (target: ${PHRASES_TARGET}) = ${result.prioritizedPhrasesCount} from dictionary + ${phrasesFromJson.length} from JSON`)
+      logger.info(`Found ${matchingDictionaryEntries.length} matching dictionary entries for selected words/phrases`)
+
     } else {
       // No userId, all words are from JSON - normalize to lowercase
       words = [...allWords]
@@ -246,7 +337,8 @@ export async function GET(request: Request) {
     words = words.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
     phrases = phrases.map(p => ({ ...p, gram: p.gram.toLowerCase().trim() }))
 
-    return NextResponse.json({
+    // Prepare response
+    const response: any = {
       success: true,
       words,
       phrases,
@@ -256,7 +348,14 @@ export async function GET(request: Request) {
         words: wordsFromJson,
         phrases: phrasesFromJson
       }
-    })
+    }
+
+    // Include matching dictionary entries if userId was provided
+    if (userId && matchingDictionaryEntries.length > 0) {
+      response.dictionaryEntries = matchingDictionaryEntries
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     logger.error('Failed to load vocabulary:', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/app/components/Header'
 import { User } from '@/types/user'
-import { VocabularyItem } from '@/types/dictionary'
+import { WordData, DictionaryEntry } from '@/types/dictionary'
 
 const MAX_STUDY_TIME = 30 * 60 * 1000 // 30 minutes in milliseconds
 const WORDS_TO_LOAD = 200
@@ -14,8 +14,8 @@ const WORDS_TO_TEST = 50 // System will randomly select 50 for quiz
 export default function StudyPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
-  const [words, setWords] = useState<VocabularyItem[]>([])
-  const [phrases, setPhrases] = useState<VocabularyItem[]>([])
+  const [words, setWords] = useState<DictionaryEntry[]>([])
+  const [phrases, setPhrases] = useState<DictionaryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState<number>(0)
   const [loadingStep, setLoadingStep] = useState<string>('Initializing...')
@@ -60,6 +60,8 @@ export default function StudyPage() {
     }
   }, [isTimerRunning, timeRemaining])
 
+
+  // Loads vocabulary items for a user (or random items if no userId is provided)
   const loadVocabulary = async () => {
     if (!user) return
     
@@ -72,21 +74,22 @@ export default function StudyPage() {
       const data = await response.json()
       
       // Words and phrases are already prioritized by the API - ensure lowercase
+      // These include those from JSON and dictionary entries
       const initialWords = data.words.map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() }))
       const initialPhrases = data.phrases.map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() }))
       
       // Track which items came from JSON (the 30% fill-up that need DeepSeek preparation)
       const wordsFromJson = (data.fromJson?.words || []).map((w: string) => w.toLowerCase().trim())
       const phrasesFromJson = (data.fromJson?.phrases || []).map((p: string) => p.toLowerCase().trim())
-      
-      setWords(initialWords)
-      setPhrases(initialPhrases)
+
+      // Get dictionary entries from API (includes definition, synonyms, antonyms for dictionary items)
+      const dictionaryEntries: DictionaryEntry[] = data.dictionaryEntries || []
       
       setLoadingProgress(25)
-      setLoadingStep('Loading definitions from dictionary...')
+      setLoadingStep('Merging dictionary entries...')
 
-      // Automatically load definitions from database and prepare new ones for JSON items that don't have definitions
-      await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson)
+      // Merge dictionary entries with words/phrases and prepare definitions for JSON items that don't have dictionary entries
+      await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson, dictionaryEntries)
       
       setLoading(false)
       setLoadingProgress(100)
@@ -105,197 +108,98 @@ export default function StudyPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const loadDefinitions = async (wordsToLoad: VocabularyItem[] = words, phrasesToLoad: VocabularyItem[] = phrases, wordsFromJson: string[] = [], phrasesFromJson: string[] = []) => {
+
+  // Prepares definitions for JSON items using DeepSeek and combines with dictionary entries
+  const loadDefinitions = async (
+    wordsToLoad: WordData[] = [],
+    phrasesToLoad: WordData[] = [],
+    wordsFromJson: string[] = [],
+    phrasesFromJson: string[] = [],
+    dictionaryEntries: DictionaryEntry[] = []
+  ) => {
     try {
-      // Separate Step 1 items (from database) and Step 2 items (from JSON)
-      setLoadingStep('Applying dictionary definitions...')
-      const step1Words = wordsToLoad.filter(w => {
-        const key = (w.gram || '').toLowerCase().trim()
-        return !wordsFromJson.includes(key)
-      })
-      const step1Phrases = phrasesToLoad.filter(p => {
-        const key = (p.gram || '').toLowerCase().trim()
-        return !phrasesFromJson.includes(key)
+      // Create a map of dictionary entries for quick lookup
+      const dictionaryMap = new Map<string, DictionaryEntry>()
+      dictionaryEntries.forEach(entry => {
+        const key = entry.word.toLowerCase().trim()
+        dictionaryMap.set(key, entry)
       })
       
-      const step2Words = wordsToLoad.filter(w => {
+      // Step 1: Prepare definitions for JSON items using DeepSeek
+      const jsonWords = wordsToLoad.filter(w => {
         const key = (w.gram || '').toLowerCase().trim()
         return wordsFromJson.includes(key)
       })
-      const step2Phrases = phrasesToLoad.filter(p => {
+      const jsonPhrases = phrasesToLoad.filter(p => {
         const key = (p.gram || '').toLowerCase().trim()
         return phrasesFromJson.includes(key)
       })
       
-      // Step 1: Load definitions from database only for Step 1 items (from database)
-      // These items should have definitions in the database, but some might be missing
-      let step1WordsWithDefs = step1Words
-      let step1PhrasesWithDefs = step1Phrases
-      
-      if (step1Words.length > 0 || step1Phrases.length > 0) {
-        setLoadingProgress(40)
-        const step1Texts = [...step1Words, ...step1Phrases].map(item => (item.gram || '').toLowerCase().trim())
-        const response = await fetch('/api/vocabulary/definitions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ words: step1Texts })
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          
-          // Update Step 1 words with definitions from database
-          step1WordsWithDefs = step1Words.map(w => {
-            const key = (w.gram || '').toLowerCase().trim()
-            const defData = data.definitions[key]
-            const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
-            return {
-              ...w,
-              gram: key,
-              definition: definition,
-              synonyms: defData?.synonyms || [],
-              antonyms: defData?.antonyms || []
-            }
-          })
-          
-          // Update Step 1 phrases with definitions from database
-          step1PhrasesWithDefs = step1Phrases.map(p => {
-            const key = (p.gram || '').toLowerCase().trim()
-            const defData = data.definitions[key]
-            const definition = defData?.definition && defData.definition !== null ? defData.definition : undefined
-            return {
-              ...p,
-              gram: key,
-              definition: definition,
-              synonyms: defData?.synonyms || [],
-              antonyms: defData?.antonyms || []
-            }
-          })
-        }
-      }
-      
-      // Step 2: Prepare definitions for ALL items without definitions using DeepSeek
-      // This includes Step 2 items (from JSON) AND Step 1 items that don't have definitions
-      const wordsWithoutDefs = [
-        ...step1WordsWithDefs.filter(w => !w.definition),
-        ...step2Words
-      ]
-      const phrasesWithoutDefs = [
-        ...step1PhrasesWithDefs.filter(p => !p.definition),
-        ...step2Phrases
-      ]
-      
-      let step2WordsWithDefs = step2Words
-      let step2PhrasesWithDefs = step2Phrases
-      
-      if (wordsWithoutDefs.length > 0 || phrasesWithoutDefs.length > 0) {
+      if (jsonWords.length > 0 || jsonPhrases.length > 0) {
         setLoadingStep('Preparing new definitions (based on LLM)...')
-        setLoadingProgress(65)
-        const prepareResult = await prepareNewWordsFromJson(wordsWithoutDefs, phrasesWithoutDefs)
+        setLoadingProgress(40)
+        
+        const prepareResult = await prepareNewWordsFromJson(jsonWords, jsonPhrases)
         
         if (prepareResult?.definitions) {
-          setLoadingProgress(85)
-          // Update Step 1 words that didn't have definitions
-          step1WordsWithDefs = step1WordsWithDefs.map(w => {
-            const key = (w.gram || '').toLowerCase().trim()
-            const newDefData = prepareResult.definitions[key]
-            if (newDefData) {
-              const definition = (newDefData.definition && newDefData.definition !== null) 
-                ? newDefData.definition 
-                : undefined
-              return {
-                ...w,
-                gram: key,
-                definition: definition,
-                synonyms: newDefData.synonyms || [],
-                antonyms: newDefData.antonyms || []
-              }
+          setLoadingProgress(70)
+          
+          // Convert prepare result to DictionaryEntry format
+          const preparedEntriesMap = new Map<string, DictionaryEntry>()
+          Object.entries(prepareResult.definitions).forEach(([key, defData]) => {
+            const wordData = [...jsonWords, ...jsonPhrases].find(item => 
+              (item.gram || '').toLowerCase().trim() === key
+            )
+            if (wordData) {
+              preparedEntriesMap.set(key, {
+                word: key,
+                definition: defData.definition && defData.definition !== null ? defData.definition : undefined,
+                synonyms: defData.synonyms || [],
+                antonyms: defData.antonyms || [],
+                frequency: wordData.freq || 0,
+                lastUpdated: new Date()
+              })
             }
-            return w
           })
           
-          // Update Step 1 phrases that didn't have definitions
-          step1PhrasesWithDefs = step1PhrasesWithDefs.map(p => {
-            const key = (p.gram || '').toLowerCase().trim()
-            const newDefData = prepareResult.definitions[key]
-            if (newDefData) {
-              const definition = (newDefData.definition && newDefData.definition !== null) 
-                ? newDefData.definition 
-                : undefined
-              return {
-                ...p,
-                gram: key,
-                definition: definition,
-                synonyms: newDefData.synonyms || [],
-                antonyms: newDefData.antonyms || []
-              }
-            }
-            return p
-          })
-          
-          // Update Step 2 words with definitions from DeepSeek
-          step2WordsWithDefs = step2Words.map(w => {
-            const key = (w.gram || '').toLowerCase().trim()
-            const newDefData = prepareResult.definitions[key]
-            if (newDefData) {
-              const definition = (newDefData.definition && newDefData.definition !== null) 
-                ? newDefData.definition 
-                : undefined
-              return {
-                ...w,
-                gram: key,
-                definition: definition,
-                synonyms: newDefData.synonyms || [],
-                antonyms: newDefData.antonyms || []
-              }
-            }
-            return w
-          })
-          
-          // Update Step 2 phrases with definitions from DeepSeek
-          step2PhrasesWithDefs = step2Phrases.map(p => {
-            const key = (p.gram || '').toLowerCase().trim()
-            const newDefData = prepareResult.definitions[key]
-            if (newDefData) {
-              const definition = (newDefData.definition && newDefData.definition !== null) 
-                ? newDefData.definition 
-                : undefined
-              return {
-                ...p,
-                gram: key,
-                definition: definition,
-                synonyms: newDefData.synonyms || [],
-                antonyms: newDefData.antonyms || []
-              }
-            }
-            return p
+          // Merge prepared entries into dictionary map
+          preparedEntriesMap.forEach((entry, key) => {
+            dictionaryMap.set(key, entry)
           })
         }
       }
       
-      // Step 3: Combine Step 1 and Step 2 items, maintaining original order
-      // Reconstruct the original order by checking if each item is from Step 1 or Step 2
-      const finalWords = wordsToLoad.map(w => {
+      // Step 2: Combine dictionary entries and prepared entries, maintaining original order
+      const finalWords = wordsToLoad.map((w: WordData) => {
         const key = (w.gram || '').toLowerCase().trim()
-        const isFromJson = wordsFromJson.includes(key)
-        if (isFromJson) {
-          return step2WordsWithDefs.find(sw => (sw.gram || '').toLowerCase().trim() === key) || w
-        } else {
-          return step1WordsWithDefs.find(sw => (sw.gram || '').toLowerCase().trim() === key) || w
-        }
+        return dictionaryMap.get(key) || {
+          word: key,
+          definition: undefined,
+          synonyms: [],
+          antonyms: [],
+          frequency: w.freq || 0,
+          lastUpdated: new Date(),
+          synonymsProcessed: false
+        } as DictionaryEntry
       })
       
-      const finalPhrases = phrasesToLoad.map(p => {
+      const finalPhrases = phrasesToLoad.map((p: WordData) => {
         const key = (p.gram || '').toLowerCase().trim()
-        const isFromJson = phrasesFromJson.includes(key)
-        if (isFromJson) {
-          return step2PhrasesWithDefs.find(sp => (sp.gram || '').toLowerCase().trim() === key) || p
-        } else {
-          return step1PhrasesWithDefs.find(sp => (sp.gram || '').toLowerCase().trim() === key) || p
-        }
+        return dictionaryMap.get(key) || {
+          word: key,
+          definition: undefined,
+          synonyms: [],
+          antonyms: [],
+          frequency: p.freq || 0,
+          lastUpdated: new Date(),
+          synonymsProcessed: false
+        } as DictionaryEntry
       })
       
-      // Step 4: Display all 250 items with their definitions
+      setLoadingProgress(100)
+      setLoadingStep('Ready')
+      
+      // Step 3: Display all items with their definitions
       setWords(finalWords)
       setPhrases(finalPhrases)
       
@@ -304,7 +208,7 @@ export default function StudyPage() {
     }
   }
 
-  const prepareNewWordsFromJson = async (newWords: VocabularyItem[], newPhrases: VocabularyItem[]): Promise<{ definitions: Record<string, { definition: string | null, synonyms: string[], antonyms: string[] }> } | null> => {
+  const prepareNewWordsFromJson = async (newWords: WordData[], newPhrases: WordData[]): Promise<{ definitions: Record<string, { definition: string | null, synonyms: string[], antonyms: string[] }> } | null> => {
     try {
       if (newWords.length === 0 && newPhrases.length === 0) return null
       
@@ -342,8 +246,8 @@ export default function StudyPage() {
 
       const shuffled = [...allItems].sort(() => Math.random() - 0.5)
       const selected = shuffled.slice(0, WORDS_TO_TEST).map(item => ({
-        gram: (item.gram || '').toLowerCase().trim(),
-        freq: item.freq
+        gram: (item.word || '').toLowerCase().trim(),
+        freq: item.frequency || 0
       }))
 
       // Navigate to quiz with selected words
@@ -444,7 +348,7 @@ export default function StudyPage() {
                   {[...words, ...phrases].map((item, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-semibold text-gray-900">{item.gram}</div>
+                        <div className="text-sm font-semibold text-gray-900">{item.word}</div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-700">
@@ -476,7 +380,7 @@ export default function StudyPage() {
               {[...words, ...phrases].map((item, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
                   <div className="mb-3">
-                    <h3 className="text-base font-semibold text-gray-900 mb-2">{item.gram}</h3>
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">{item.word}</h3>
                   </div>
                   <div className="space-y-2 text-sm">
                     <div>
