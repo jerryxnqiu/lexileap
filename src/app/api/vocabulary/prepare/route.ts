@@ -9,22 +9,6 @@ export const dynamic = 'force-dynamic'
 const RATE_LIMIT_DELAY = 1000 // 1 second between API calls
 const MAX_RETRIES = 3
 
-/*
-step 3:
-POST:       /api/vocabulary/prepare
-Purpose:    Use the LLM (DeepSeek, currently mocked) to generate dictionary entries for words/phrases that don’t yet have definitions.
-Input body: { words: { gram, freq }[], phrases: { gram, freq }[] }.
-Output:     { success, processed, skipped, total, definitions }.
-
-What it does:
-- For each word/phrase:
-  - Check "dictionary/{text}"; if it already has a definition, skip.
-- Otherwise:
-  - Call "getDeepSeekDefinition(text, isPhrase)" (mocked unless DEEPSEEK_ENABLED=true).
-  - Build a "DictionaryEntry" with definition, synonyms, antonyms, frequency.
-  - Save to "dictionary" collection in the background ("docRef.set(...)").
-  - Add the entry into a "definitions" map for immediate return.
-*/
 
 async function fetchWithRetry(url: string, body: Record<string, unknown>, maxRetries: number = MAX_RETRIES): Promise<Response> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -72,6 +56,7 @@ async function fetchWithRetry(url: string, body: Record<string, unknown>, maxRet
 
 // Set to false to disable DeepSeek API calls and use mock data for testing
 const DEEPSEEK_ENABLED = false
+
 
 async function getDeepSeekDefinition(text: string, isPhrase: boolean = false): Promise<{ definition: string | null, synonyms: string[], antonyms: string[] }> {
   // Return mock data when DeepSeek is disabled
@@ -142,6 +127,7 @@ Guidelines:
   }
 }
 
+// Prepare definitions for words and phrases using DeepSeek
 export async function POST(request: Request) {
   try {
     const { words, phrases } = await request.json()
@@ -192,7 +178,6 @@ export async function POST(request: Request) {
           synonyms: synonyms.map(s => s.toLowerCase().trim()), // Lowercase synonyms
           antonyms: antonyms.map(a => a.toLowerCase().trim()), // Lowercase antonyms
           frequency: wordItem.freq,
-          synonymsProcessed: true,
           lastUpdated: new Date()
         }
 
@@ -245,7 +230,6 @@ export async function POST(request: Request) {
           synonyms: synonyms.map(s => s.toLowerCase().trim()), // Lowercase synonyms
           antonyms: antonyms.map(a => a.toLowerCase().trim()), // Lowercase antonyms
           frequency: phraseItem.freq,
-          synonymsProcessed: true,
           lastUpdated: new Date()
         }
 
