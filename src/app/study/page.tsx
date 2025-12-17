@@ -91,7 +91,7 @@ export default function StudyPage() {
       setLoadingStep('Merging dictionary entries...')
 
       // Merge dictionary entries with words/phrases and prepare definitions for JSON items that don't have dictionary entries
-      await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson, dictionaryEntries)
+      const { finalWords, finalPhrases } = await loadDefinitions(initialWords, initialPhrases, wordsFromJson, phrasesFromJson, dictionaryEntries)
       
       setLoading(false)
       setLoadingProgress(100)
@@ -100,8 +100,8 @@ export default function StudyPage() {
       // Start timer immediately when content is loaded
       setIsTimerRunning(true)
 
-      // Prepare quiz questions in the background
-      prepareQuizQuestions()
+      // Prepare quiz questions in the background (pass words directly since state update is async)
+      prepareQuizQuestions(finalWords)
     } catch (error) {
       setLoading(false)
     }
@@ -121,7 +121,7 @@ export default function StudyPage() {
     wordsFromJson: string[] = [],
     phrasesFromJson: string[] = [],
     dictionaryEntries: DictionaryEntry[] = []
-  ) => {
+  ): Promise<{ finalWords: DictionaryEntry[]; finalPhrases: DictionaryEntry[] }> => {
     try {
       // Create a map of dictionary entries for quick lookup
       const dictionaryMap = new Map<string, DictionaryEntry>()
@@ -213,8 +213,11 @@ export default function StudyPage() {
       const shuffled = [...combined].sort(() => Math.random() - 0.5)
       setDisplayItems(shuffled)
       
+      // Return words and phrases so they can be used immediately (state update is async)
+      return { finalWords, finalPhrases }
     } catch (error) {
       // Error handled silently - definitions will be missing
+      return { finalWords: [], finalPhrases: [] }
     }
   }
 
@@ -247,22 +250,32 @@ export default function StudyPage() {
 
   // Prepares quiz questions in the background
   // Randomly selects 50 words from the available words and sends them to the backend
-  const prepareQuizQuestions = async () => {
-    if (!user || words.length === 0) return
+  const prepareQuizQuestions = async (wordsToUse?: DictionaryEntry[]) => {
+    const wordsForQuiz = wordsToUse || words
+    console.log('[Study] prepareQuizQuestions called', { user: !!user, wordsCount: wordsForQuiz.length, usingProvided: !!wordsToUse })
+    
+    if (!user || wordsForQuiz.length === 0) {
+      console.log('[Study] prepareQuizQuestions: early return - no user or words')
+      return
+    }
     
     setPreparingQuiz(true)
     
     try {
       // Randomly select 50 words from available words (already separated from phrases)
-      const shuffled = [...words].sort(() => Math.random() - 0.5)
+      const shuffled = [...wordsForQuiz].sort(() => Math.random() - 0.5)
       const selectedWords = shuffled.slice(0, WORDS_TO_TEST)
       
+      console.log('[Study] prepareQuizQuestions: selected words', { count: selectedWords.length })
+      
       if (selectedWords.length === 0) {
+        console.log('[Study] prepareQuizQuestions: no words selected')
         setPreparingQuiz(false)
         return
       }
 
       // Send full DictionaryEntry objects directly to backend
+      console.log('[Study] prepareQuizQuestions: calling /api/quiz/generate')
       const response = await fetch('/api/quiz/generate', {
         method: 'POST',
         headers: {
@@ -274,7 +287,10 @@ export default function StudyPage() {
         })
       })
 
+      console.log('[Study] prepareQuizQuestions: response received', { ok: response.ok, status: response.status, hasBody: !!response.body })
+      
       if (!response.ok || !response.body) {
+        console.error('[Study] prepareQuizQuestions: response not OK or missing body', { status: response.status })
         setPreparingQuiz(false)
         return
       }
