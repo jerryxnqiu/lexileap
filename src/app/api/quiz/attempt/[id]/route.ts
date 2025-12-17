@@ -20,7 +20,38 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     }
     const sessionData = sessionDoc.data() as Record<string, unknown>
 
-    // Fetch user attempt (answers, score, timestamps)
+    // Check if session is completed
+    const isCompleted = sessionData.completed === true
+
+    // Helper function to convert Firestore Timestamp to ISO string
+    const convertTimestamp = (ts: unknown): string | null => {
+      if (!ts) return null
+      if (typeof ts === 'object' && ts !== null && 'toDate' in ts && typeof (ts as { toDate: () => Date }).toDate === 'function') {
+        return (ts as { toDate: () => Date }).toDate().toISOString()
+      }
+      if (ts instanceof Date) {
+        return ts.toISOString()
+      }
+      return typeof ts === 'string' ? ts : null
+    }
+
+    // If session is not completed (active quiz), return session data directly
+    if (!isCompleted) {
+      const session = {
+        id: sessionId,
+        userId: sessionData.userId,
+        questions: sessionData.questions || [],
+        currentQuestion: sessionData.currentQuestion || 0,
+        answers: sessionData.answers || [],
+        startTime: convertTimestamp(sessionData.startTime) || '',
+        endTime: convertTimestamp(sessionData.endTime),
+        score: sessionData.score,
+        completed: false
+      }
+      return NextResponse.json(session)
+    }
+
+    // If completed, return merged data with attempt details (for viewing results)
     const attemptDoc = await db.collection('user_quiz_attempts').doc(sessionId).get()
     const attemptData = attemptDoc.exists ? (attemptDoc.data() as Record<string, unknown>) : undefined
 

@@ -71,8 +71,73 @@ export default function QuizPage() {
   const startQuiz = useCallback(async () => {
     if (!user) return;
     
-    // Check for selected words from URL or saved selection
     const urlParams = new URLSearchParams(window.location.search)
+    const sessionIdParam = urlParams.get('sessionId')
+    
+    // If sessionId is provided, load the existing session
+    if (sessionIdParam) {
+      setLoading(true);
+      try {
+        // Load session from attempt endpoint (handles both active and completed sessions)
+        const response = await fetch(`/api/quiz/attempt/${encodeURIComponent(sessionIdParam)}`)
+        if (!response.ok) {
+          throw new Error('Failed to load session')
+        }
+        const sessionData = await response.json()
+        
+        // Check if this is a completed attempt (has merged question format) or active session
+        const isCompletedAttempt = sessionData.questions && sessionData.questions[0] && 'userAnswer' in sessionData.questions[0]
+        
+        let quizSession: QuizSession
+        
+        if (isCompletedAttempt) {
+          // Completed attempt format - convert to QuizSession
+          quizSession = {
+            id: sessionData.sessionId,
+            userId: sessionData.userId,
+            questions: sessionData.questions.map((q: any) => ({
+              id: '',
+              word: q.word,
+              correctDefinition: '',
+              options: q.options,
+              correctIndex: q.correctIndex,
+              nGramFreq: 0
+            })),
+            currentQuestion: 0,
+            answers: sessionData.questions.map((q: any) => q.userAnswer),
+            startTime: new Date(sessionData.startTime),
+            endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
+            score: sessionData.score,
+            completed: true
+          }
+        } else {
+          // Active session format - use directly
+          quizSession = {
+            id: sessionData.id,
+            userId: sessionData.userId,
+            questions: sessionData.questions || [],
+            currentQuestion: sessionData.currentQuestion || 0,
+            answers: sessionData.answers || new Array(sessionData.questions?.length || 0).fill(null),
+            startTime: new Date(sessionData.startTime),
+            endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
+            score: sessionData.score,
+            completed: sessionData.completed || false
+          }
+        }
+        
+        setSession(quizSession)
+        setTimeLeft(600) // Reset timer
+        setLoading(false)
+        return
+      } catch (error) {
+        setLoading(false)
+        alert('Failed to load quiz session. Please try again.')
+        router.push('/study')
+        return
+      }
+    }
+    
+    // Fallback to old flow: Check for selected words from URL or saved selection
     const selectionParam = urlParams.get('selection')
     let selectedWords: string[] = []
     

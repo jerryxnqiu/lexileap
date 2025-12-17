@@ -23,6 +23,7 @@ export default function StudyPage() {
   const [timeRemaining, setTimeRemaining] = useState(MAX_STUDY_TIME)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [preparingQuiz, setPreparingQuiz] = useState(false)
+  const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     const savedUser = localStorage.getItem('lexileapUser')
@@ -307,6 +308,18 @@ export default function StudyPage() {
             for (let i = 0; i < lines.length; i++) {
               const line = lines[i]
               if (line.startsWith('event: complete')) {
+                // Try to parse sessionId from the data line
+                if (i + 1 < lines.length && lines[i + 1].startsWith('data: ')) {
+                  try {
+                    const dataStr = lines[i + 1].substring(6) // Remove 'data: ' prefix
+                    const data = JSON.parse(dataStr)
+                    if (data.sessionId) {
+                      setQuizSessionId(data.sessionId)
+                    }
+                  } catch {
+                    // Ignore parsing errors
+                  }
+                }
                 setPreparingQuiz(false)
                 return
               } else if (line.startsWith('event: error')) {
@@ -332,21 +345,12 @@ export default function StudyPage() {
     if (preparingQuiz) return // Prevent action while preparing quiz questions
 
     try {
-      // System randomly selects 50 WORDS (no phrases) - ensure lowercase
-      const allItems = [...words]
-      if (allItems.length === 0) {
-        alert('No words available for testing yet. Please wait for loading to finish.')
-        return
+      // Use the sessionId from the prepared quiz session
+      if (quizSessionId) {
+        router.push(`/quiz?sessionId=${encodeURIComponent(quizSessionId)}`)
+      } else {
+        alert('Quiz questions are still being prepared. Please wait a moment.')
       }
-
-      const shuffled = [...allItems].sort(() => Math.random() - 0.5)
-      const selected = shuffled.slice(0, WORDS_TO_TEST).map(item => ({
-        gram: (item.word || '').toLowerCase().trim(),
-        freq: item.frequency || 0
-      }))
-
-      // Navigate to quiz with selected words
-      router.push(`/quiz?selection=${encodeURIComponent(JSON.stringify(selected.map(s => s.gram)))}`)
     } catch (error) {
       alert('Failed to start quiz. Please try again.')
     }
