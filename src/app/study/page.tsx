@@ -16,11 +16,13 @@ export default function StudyPage() {
   const [user, setUser] = useState<User | null>(null)
   const [words, setWords] = useState<DictionaryEntry[]>([])
   const [phrases, setPhrases] = useState<DictionaryEntry[]>([])
+  const [displayItems, setDisplayItems] = useState<DictionaryEntry[]>([]) // Shuffled combined words + phrases for display
   const [loading, setLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState<number>(0)
   const [loadingStep, setLoadingStep] = useState<string>('Initializing...')
   const [timeRemaining, setTimeRemaining] = useState(MAX_STUDY_TIME)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
+  const [preparingQuiz, setPreparingQuiz] = useState(false)
 
   useEffect(() => {
     const savedUser = localStorage.getItem('lexileapUser')
@@ -97,6 +99,9 @@ export default function StudyPage() {
 
       // Start timer immediately when content is loaded
       setIsTimerRunning(true)
+
+      // Prepare quiz questions in the background
+      prepareQuizQuestions()
     } catch (error) {
       setLoading(false)
     }
@@ -199,15 +204,22 @@ export default function StudyPage() {
       setLoadingProgress(100)
       setLoadingStep('Ready')
       
-      // Step 3: Display all items with their definitions
+      // Step 3: Store words and phrases separately, then create shuffled combined list for display
       setWords(finalWords)
       setPhrases(finalPhrases)
+      
+      // Shuffle words and phrases together for display
+      const combined = [...finalWords, ...finalPhrases]
+      const shuffled = [...combined].sort(() => Math.random() - 0.5)
+      setDisplayItems(shuffled)
       
     } catch (error) {
       // Error handled silently - definitions will be missing
     }
   }
 
+
+  // Prepares definitions for new words and phrases using DeepSeek
   const prepareNewWordsFromJson = async (newWords: WordData[], newPhrases: WordData[]): Promise<{ definitions: Record<string, { definition: string | null, synonyms: string[], antonyms: string[] }> } | null> => {
     try {
       if (newWords.length === 0 && newPhrases.length === 0) return null
@@ -233,8 +245,91 @@ export default function StudyPage() {
     }
   }
 
+  // Helper function to check if an item is a word (single word) vs phrase (multiple words)
+  const isWord = (text: string): boolean => {
+    return text.trim().split(/\s+/).length === 1
+  }
+
+  // Prepares quiz questions in the background for the 200 words
+  // Uses POST endpoint to avoid URL length limits (200 words would exceed ~2000 chars)
+  const prepareQuizQuestions = async () => {
+    if (!user || words.length === 0) return
+    
+    setPreparingQuiz(true)
+    
+    try {
+      // Filter only words (not phrases) from both words and phrases arrays
+      // Then take the first 200 words for quiz preparation
+      const allItems = [...words, ...phrases]
+      const wordItems = allItems.filter(item => isWord(item.word))
+      const wordStrings = wordItems.slice(0, WORDS_TO_LOAD).map(w => w.word.toLowerCase().trim())
+      
+      if (wordStrings.length === 0) {
+        setPreparingQuiz(false)
+        return
+      }
+
+      // Use POST endpoint to avoid URL length limits
+      const response = await fetch('/api/quiz/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.email,
+          words: wordStrings
+        })
+      })
+
+      if (!response.ok || !response.body) {
+        setPreparingQuiz(false)
+        return
+      }
+
+      // Read SSE stream manually from POST response
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      const processStream = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) {
+              setPreparingQuiz(false)
+              break
+            }
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i]
+              if (line.startsWith('event: complete')) {
+                setPreparingQuiz(false)
+                return
+              } else if (line.startsWith('event: error')) {
+                setPreparingQuiz(false)
+                return
+              }
+            }
+          }
+        } catch (error) {
+          setPreparingQuiz(false)
+        }
+      }
+
+      processStream()
+    } catch (error) {
+      setPreparingQuiz(false)
+      // Silently handle error - quiz can still proceed with existing questions
+    }
+  }
+
   const handleReady = async () => {
     if (!user) return
+    if (preparingQuiz) return // Prevent action while preparing quiz questions
 
     try {
       // System randomly selects 50 WORDS (no phrases) - ensure lowercase
@@ -314,9 +409,16 @@ export default function StudyPage() {
 
             <button
               onClick={handleReady}
-              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold cursor-pointer"
+              disabled={preparingQuiz}
+              className={`w-full px-6 py-3 rounded-lg font-semibold ${
+                preparingQuiz
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'
+              }`}
             >
-              Ready to Move to Testing (System will randomly select {WORDS_TO_TEST} words)
+              {preparingQuiz
+                ? 'Preparing quiz questions...'
+                : `Ready to Move to Testing (System will randomly select ${WORDS_TO_TEST} words)`}
             </button>
           </div>
 
@@ -345,7 +447,7 @@ export default function StudyPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {[...words, ...phrases].map((item, idx) => (
+                  {displayItems.map((item, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-gray-900">{item.word}</div>
@@ -377,7 +479,7 @@ export default function StudyPage() {
 
             {/* Mobile Card View */}
             <div className="md:hidden space-y-4">
-              {[...words, ...phrases].map((item, idx) => (
+              {displayItems.map((item, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
                   <div className="mb-3">
                     <h3 className="text-base font-semibold text-gray-900 mb-2">{item.word}</h3>

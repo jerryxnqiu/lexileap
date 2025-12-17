@@ -5,16 +5,18 @@ import { logger } from '@/libs/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-// SSE proxy: streams from the data-processing instance to the client
-export async function GET(request: Request) {
+// POST handler: proxies to data-processing instance (external Cloud Run)
+// Uses POST to avoid URL length limits when sending 200 words
+export async function POST(request: Request) {
   try {
     const base = await getSecret('lexileap-data-url')
     if (!base) {
       return NextResponse.json({ error: 'Data processing service not configured' }, { status: 503 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
+    const body = await request.json()
+    const { userId, words } = body
+
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
@@ -23,11 +25,13 @@ export async function GET(request: Request) {
     const client = await auth.getIdTokenClient(base)
     const headers = await client.getRequestHeaders()
 
-    const upstream = await fetch(`${base}/api/quiz/generate-stream?userId=${encodeURIComponent(userId)}`, {
-      method: 'GET',
+    const upstream = await fetch(`${base}/api/quiz/generate-stream`, {
+      method: 'POST',
       headers: {
-        ...headers
+        ...headers,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ userId, words }),
       cache: 'no-store'
     })
 
@@ -64,7 +68,7 @@ export async function GET(request: Request) {
       }
     })
   } catch (error) {
-    logger.error('SSE proxy error:', error instanceof Error ? error : new Error(String(error)))
+    logger.error('SSE POST proxy error:', error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
   }
 }
