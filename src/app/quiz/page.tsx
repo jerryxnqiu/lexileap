@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { QuizSession } from '@/types/quiz';
@@ -14,9 +14,11 @@ export default function QuizPage() {
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1500); // each question is 30 seconds
   const router = useRouter();
+  const searchParams = useSearchParams();
   const sessionRef = useRef<QuizSession | null>(null);
   const userRef = useRef<User | null>(null);
   const submittingRef = useRef(false);
+  const autoStartedRef = useRef(false);
 
   // Update refs when state changes
   useEffect(() => {
@@ -30,6 +32,21 @@ export default function QuizPage() {
   useEffect(() => {
     submittingRef.current = submitting;
   }, [submitting]);
+
+  // Load user from localStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem('lexileapUser');
+    if (savedUser) {
+      try {
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+      } catch {
+        router.push('/');
+      }
+    } else {
+      router.push('/');
+    }
+  }, [router]);
 
   const finishQuiz = useCallback(async () => {
     const currentSession = sessionRef.current;
@@ -68,138 +85,103 @@ export default function QuizPage() {
     }
   }, []); // No dependencies - uses refs instead
 
-  const startQuiz = useCallback(async () => {
+  const startQuiz = useCallback(async (sessionIdOverride?: string) => {
     if (!user) return;
     
-    const urlParams = new URLSearchParams(window.location.search)
-    const sessionIdParam = urlParams.get('sessionId')
+    const sessionIdParam = sessionIdOverride || searchParams.get('sessionId')
     
-    // If sessionId is provided, load the existing session
-    if (sessionIdParam) {
-      setLoading(true);
-      try {
-        // Load session from attempt endpoint (handles both active and completed sessions)
-        const response = await fetch(`/api/quiz/attempt/${encodeURIComponent(sessionIdParam)}`)
-        if (!response.ok) {
-          throw new Error('Failed to load session')
-        }
-        const sessionData = await response.json()
-        
-        // Check if this is a completed attempt (has merged question format) or active session
-        const isCompletedAttempt = sessionData.questions && sessionData.questions[0] && 'userAnswer' in sessionData.questions[0]
-        
-        let quizSession: QuizSession
-        
-        if (isCompletedAttempt) {
-          // Completed attempt format - convert to QuizSession
-          quizSession = {
-            id: sessionData.sessionId,
-            userId: sessionData.userId,
-            questions: sessionData.questions.map((q: any) => ({
-              id: '',
-              word: q.word,
-              correctDefinition: '',
-              options: q.options,
-              correctIndex: q.correctIndex,
-              nGramFreq: 0
-            })),
-            currentQuestion: 0,
-            answers: sessionData.questions.map((q: any) => q.userAnswer),
-            startTime: new Date(sessionData.startTime),
-            endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
-            score: sessionData.score,
-            completed: true
-          }
-        } else {
-          // Active session format - use directly
-          quizSession = {
-            id: sessionData.id,
-            userId: sessionData.userId,
-            questions: sessionData.questions || [],
-            currentQuestion: sessionData.currentQuestion || 0,
-            answers: sessionData.answers || new Array(sessionData.questions?.length || 0).fill(null),
-            startTime: new Date(sessionData.startTime),
-            endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
-            score: sessionData.score,
-            completed: sessionData.completed || false
-          }
-        }
-        
-        setSession(quizSession)
-        setTimeLeft(600) // Reset timer
-        setLoading(false)
-        return
-      } catch (error) {
-        setLoading(false)
-        alert('Failed to load quiz session. Please try again.')
-        router.push('/study')
-        return
-      }
-    }
-    
-    // Fallback to old flow: Check for selected words from URL or saved selection
-    const selectionParam = urlParams.get('selection')
-    let selectedWords: string[] = []
-    
-    if (selectionParam) {
-      try {
-        selectedWords = JSON.parse(decodeURIComponent(selectionParam))
-      } catch {
-        // Invalid selection parameter
-      }
-    }
-    
-    // If no selection in URL, try to get from saved selection
-    if (selectedWords.length === 0) {
-      try {
-        const response = await fetch(`/api/vocabulary/get-selection?userId=${encodeURIComponent(user.email)}`)
-        if (response.ok) {
-          const data = await response.json()
-          selectedWords = data.selectedWords || []
-        }
-      } catch (error) {
-        // Failed to load saved selection
-      }
-    }
-    
-    if (selectedWords.length === 0) {
-      alert('No words selected. Please go back to study page and select words.')
+    if (!sessionIdParam) {
+      alert('No quiz session found. Please go back to study page and prepare quiz questions.')
       router.push('/study')
       return
     }
     
-    setGenerating(true);
-    setTimeLeft(600); // Reset timer
+    setLoading(true);
     try {
-      // Use new endpoint that generates quiz from selected words
-      const es = new EventSource(
-        `/api/quiz/generate-from-selection?userId=${encodeURIComponent(user.email)}&words=${encodeURIComponent(JSON.stringify(selectedWords))}`
-      )
-
-      const handleComplete = (e: MessageEvent) => {
-        try {
-          const data = JSON.parse((e as MessageEvent).data);
-          if (data && data.session) {
-            setSession(data.session);
-          }
-        } catch {}
-        es.close();
-        setGenerating(false);
-      };
-
-      const handleError = () => {
-        es.close();
-        setGenerating(false);
-        alert('Failed to generate quiz. Please try again.');
-      };
-
-      es.addEventListener('complete', handleComplete as EventListener);
-      es.addEventListener('error', handleError as EventListener);
+      // Load session from attempt endpoint (handles both active and completed sessions)
+      const response = await fetch(`/api/quiz/attempt/${encodeURIComponent(sessionIdParam)}`)
+      if (!response.ok) {
+        throw new Error('Failed to load session')
+      }
+      const sessionData = await response.json()
+      
+      // Check if this is a completed attempt (has merged question format) or active session
+      const isCompletedAttempt = sessionData.questions && sessionData.questions[0] && 'userAnswer' in sessionData.questions[0]
+      
+      let quizSession: QuizSession
+      
+      if (isCompletedAttempt) {
+        // Completed attempt format - convert to QuizSession
+        quizSession = {
+          id: sessionData.sessionId,
+          userId: sessionData.userId,
+          questions: sessionData.questions.map((q: any) => ({
+            id: '',
+            word: q.word,
+            correctDefinition: '',
+            options: q.options,
+            correctIndex: q.correctIndex,
+            nGramFreq: 0
+          })),
+          currentQuestion: 0,
+          answers: sessionData.questions.map((q: any) => q.userAnswer),
+          startTime: new Date(sessionData.startTime),
+          endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
+          score: sessionData.score,
+          completed: true
+        }
+      } else {
+        // Active session format - use directly
+        quizSession = {
+          id: sessionData.id,
+          userId: sessionData.userId,
+          questions: sessionData.questions || [],
+          currentQuestion: sessionData.currentQuestion || 0,
+          answers: sessionData.answers || new Array(sessionData.questions?.length || 0).fill(null),
+          startTime: new Date(sessionData.startTime),
+          endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
+          score: sessionData.score,
+          completed: sessionData.completed || false
+        }
+      }
+      
+      setSession(quizSession)
+      setTimeLeft(600) // Reset timer
+      setLoading(false)
     } catch (error) {
-      setGenerating(false);
-      alert('Failed to start quiz generation. Please try again.');
+      setLoading(false)
+      alert('Failed to load quiz session. Please try again.')
+      router.push('/study')
     }
-  }, [user, router]);
+  }, [user, router, searchParams]);
+
+  // Auto-start quiz if token is in URL (after startQuiz is defined)
+  useEffect(() => {
+    if (!user || autoStartedRef.current || session) return;
+    
+    const tokenParam = searchParams.get('token');
+    
+    if (tokenParam) {
+      // Token will be decrypted automatically by the attempt API endpoint
+      // Update URL to remove token (for security) and use it directly
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('token')
+      window.history.replaceState({}, '', newUrl.toString())
+      // Start quiz with encrypted token - API will decrypt it
+      autoStartedRef.current = true;
+      startQuiz(tokenParam)
+    } else {
+      // No token, check for sessionId (fallback for direct access)
+      const sessionIdParam = searchParams.get('sessionId')
+      if (sessionIdParam) {
+        autoStartedRef.current = true
+        startQuiz()
+      } else {
+        // No sessionId or token, allow manual start
+        setLoading(false)
+      }
+    }
+  }, [user, session, searchParams, startQuiz, router]);
 
   const handleAnswer = (answerIndex: number) => {
     if (!session) return;
@@ -271,7 +253,7 @@ export default function QuizPage() {
               Test your vocabulary knowledge with 50 questions!
             </p>
             <button
-              onClick={startQuiz}
+              onClick={() => startQuiz()}
               disabled={generating}
               className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >

@@ -24,6 +24,7 @@ export default function StudyPage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [preparingQuiz, setPreparingQuiz] = useState(false)
   const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
+  const [quizSessionToken, setQuizSessionToken] = useState<string | null>(null)
 
   useEffect(() => {
     const savedUser = localStorage.getItem('lexileapUser')
@@ -308,13 +309,17 @@ export default function StudyPage() {
             for (let i = 0; i < lines.length; i++) {
               const line = lines[i]
               if (line.startsWith('event: complete')) {
-                // Try to parse sessionId from the data line
+                // Try to parse token from the data line
                 if (i + 1 < lines.length && lines[i + 1].startsWith('data: ')) {
                   try {
                     const dataStr = lines[i + 1].substring(6) // Remove 'data: ' prefix
                     const data = JSON.parse(dataStr)
+                    // Store both sessionId (for internal use) and token (for URL)
                     if (data.sessionId) {
                       setQuizSessionId(data.sessionId)
+                    }
+                    if (data.token) {
+                      setQuizSessionToken(data.token)
                     }
                   } catch {
                     // Ignore parsing errors
@@ -345,9 +350,9 @@ export default function StudyPage() {
     if (preparingQuiz) return // Prevent action while preparing quiz questions
 
     try {
-      // Use the sessionId from the prepared quiz session
-      if (quizSessionId) {
-        router.push(`/quiz?sessionId=${encodeURIComponent(quizSessionId)}`)
+      // Use the encrypted token from the prepared quiz session (already encrypted by backend)
+      if (quizSessionToken) {
+        router.push(`/quiz?token=${encodeURIComponent(quizSessionToken)}`)
       } else {
         alert('Quiz questions are still being prepared. Please wait a moment.')
       }
