@@ -4,10 +4,7 @@ export interface QuizQuestion {
   correctDefinition: string;
   options: string[];
   correctIndex: number;
-  wordnetData: {
-    pos: string;
-    examples: string[];
-  };
+  nGramFreq: number;
 }
 
 export interface QuizSession {

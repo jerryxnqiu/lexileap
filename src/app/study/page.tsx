@@ -245,31 +245,24 @@ export default function StudyPage() {
     }
   }
 
-  // Helper function to check if an item is a word (single word) vs phrase (multiple words)
-  const isWord = (text: string): boolean => {
-    return text.trim().split(/\s+/).length === 1
-  }
-
-  // Prepares quiz questions in the background for the 200 words
-  // Uses POST endpoint to avoid URL length limits (200 words would exceed ~2000 chars)
+  // Prepares quiz questions in the background
+  // Randomly selects 50 words from the available words and sends them to the backend
   const prepareQuizQuestions = async () => {
     if (!user || words.length === 0) return
     
     setPreparingQuiz(true)
     
     try {
-      // Filter only words (not phrases) from both words and phrases arrays
-      // Then take the first 200 words for quiz preparation
-      const allItems = [...words, ...phrases]
-      const wordItems = allItems.filter(item => isWord(item.word))
-      const wordStrings = wordItems.slice(0, WORDS_TO_LOAD).map(w => w.word.toLowerCase().trim())
+      // Randomly select 50 words from available words (already separated from phrases)
+      const shuffled = [...words].sort(() => Math.random() - 0.5)
+      const selectedWords = shuffled.slice(0, WORDS_TO_TEST)
       
-      if (wordStrings.length === 0) {
+      if (selectedWords.length === 0) {
         setPreparingQuiz(false)
         return
       }
 
-      // Use POST endpoint to avoid URL length limits
+      // Send full DictionaryEntry objects directly to backend
       const response = await fetch('/api/quiz/generate', {
         method: 'POST',
         headers: {
@@ -277,7 +270,7 @@ export default function StudyPage() {
         },
         body: JSON.stringify({
           userId: user.email,
-          words: wordStrings
+          words: selectedWords
         })
       })
 

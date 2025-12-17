@@ -2,160 +2,43 @@ import { NextResponse } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
 import { getSecret } from '@/libs/firebase/secret'
-import { QuizQuestion, WordData } from '@/types/quiz'
+import { QuizQuestion } from '@/types/quiz'
 
 export const dynamic = 'force-dynamic'
 
-async function getQuestionsFromBank(count: number): Promise<QuizQuestion[]> {
+// Get a question from the bank for a specific word (if it exists)
+async function getQuestionFromBankForWord(word: string): Promise<QuizQuestion | null> {
   try {
     const db = await getDb()
-    const snapshot = await db.collection('quiz_questions').limit(count * 2).get()
-    const questions: QuizQuestion[] = []
-    snapshot.forEach(doc => {
-      const data = doc.data()
-      if (data?.word && Array.isArray(data?.options) && data.options.length === 4) {
-        questions.push({
-          id: doc.id,
-          word: data.word,
-          correctDefinition: data.correctDefinition,
-          options: data.options,
-          correctIndex: data.correctIndex,
-          wordnetData: data.wordnetData || { pos: '', examples: [] }
-        })
-      }
-    })
-    return questions.sort(() => Math.random() - 0.5).slice(0, count)
-  } catch (error) {
-    logger.error('SSE: bank fetch error:', error instanceof Error ? error : new Error(String(error)))
-    return []
-  }
-}
-
-async function getUserWeakWords(db: FirebaseFirestore.Firestore, userId: string, limit: number): Promise<string[]> {
-  try {
-    // Pull user's attempts and aggregate wrong rates per word
-    const attemptsSnap = await db.collection('user_quiz_attempts')
-      .where('userId', '==', userId)
+    const wordLower = word.toLowerCase().trim()
+    const snapshot = await db.collection('quiz_questions')
+      .where('word', '==', wordLower)
+      .limit(1)
       .get()
-
-    type Agg = { total: number; wrong: number; lastFailedAt?: number }
-    const agg: Record<string, Agg> = {}
-    attemptsSnap.forEach(doc => {
-      const raw = doc.data() as Record<string, unknown>
-      const answers = Array.isArray(raw?.answers) ? (raw.answers as Array<Record<string, unknown>>) : []
-      const ts = raw?.completedAt as { toDate?: () => Date } | undefined
-      const completedAt: number = ts?.toDate?.()?.getTime?.() ?? Date.now()
-      for (const a of answers) {
-        const word = (a?.word as string | undefined)
-        const isCorrect = (a?.isCorrect as boolean | undefined)
-        if (!word) continue
-        if (!agg[word]) agg[word] = { total: 0, wrong: 0 }
-        agg[word].total += 1
-        if (isCorrect === false) {
-          agg[word].wrong += 1
-          const t = completedAt
-          if (!agg[word].lastFailedAt || t > agg[word].lastFailedAt) agg[word].lastFailedAt = t
-        }
-      }
-    })
-
-    // Score: higher wrong rate first; tie-breaker: more recent failure
-    const scored = Object.entries(agg)
-      .filter(([, v]) => v.total > 0)
-      .map(([word, v]) => ({
-        word,
-        wrongRate: v.wrong / v.total,
-        lastFailedAt: v.lastFailedAt ?? 0
-      }))
-      .sort((a, b) => {
-        if (b.wrongRate !== a.wrongRate) return b.wrongRate - a.wrongRate
-        return (b.lastFailedAt - a.lastFailedAt)
-      })
-      .slice(0, Math.max(limit, 0))
-
-    return scored.map(s => s.word)
-  } catch {
-    return []
-  }
-}
-
-async function getRandomWords(count: number): Promise<WordData[]> {
-  try {
-    const { getStorage } = await import('@/libs/firebase/admin')
-    const storage = await getStorage()
-    const file = storage.bucket().file('data/wordnet.json')
-    const [fileContent] = await file.download()
-    const wordnetData = JSON.parse(fileContent.toString())
-    const allWordIds = Object.keys(wordnetData)
-    const shuffledWordIds = allWordIds.sort(() => Math.random() - 0.5)
-    const words: WordData[] = []
-    for (const wordId of shuffledWordIds.slice(0, count)) {
-      const wd = wordnetData[wordId]
-      if (wd?.senses?.length > 0) {
-        words.push({
-          wordId: wd.wordId,
-          word: wd.word,
-          pos: wd.pos,
-          senses: wd.senses
-        })
+    
+    if (snapshot.empty) return null
+    
+    const doc = snapshot.docs[0]
+    const data = doc.data()
+    if (data?.word && Array.isArray(data?.options) && data.options.length === 4) {
+      return {
+        id: doc.id,
+        word: data.word,
+        correctDefinition: data.correctDefinition,
+        options: data.options,
+        correctIndex: data.correctIndex,
+        nGramFreq: data.wordnetData || { pos: '', examples: [] }
       }
     }
-    return words
+    return null
   } catch (error) {
-    logger.error('SSE: random words error:', error instanceof Error ? error : new Error(String(error)))
-    return []
+    logger.error('SSE: get question from bank error:', error instanceof Error ? error : new Error(String(error)))
+    return null
   }
 }
-
-// Get words from dictionary collection for provided word strings
-async function getWordsFromDictionary(wordStrings: string[]): Promise<WordData[]> {
-  try {
-    const db = await getDb()
-    const words: WordData[] = []
-    
-    for (const wordStr of wordStrings) {
-      const wordLower = wordStr.toLowerCase().trim()
-      const doc = await db.collection('dictionary').doc(wordLower).get()
-      
-      if (doc.exists) {
-        const data = doc.data()
-        const definition = data?.definition || 'No definition available'
-        
-        // Create WordData format from dictionary entry
-        words.push({
-          wordId: wordLower,
-          word: wordLower,
-          pos: '',
-          senses: [{
-            definition: definition,
-            examples: []
-          }]
-        })
-      } else {
-        // If not in dictionary, still include it (will try to get definition from wordnet or DeepSeek)
-        words.push({
-          wordId: wordLower,
-          word: wordLower,
-          pos: '',
-          senses: [{
-            definition: '',
-            examples: []
-          }]
-        })
-      }
-    }
-    
-    return words
-  } catch (error) {
-    logger.error('SSE: get words from dictionary error:', error instanceof Error ? error : new Error(String(error)))
-    return []
-  }
-}
-
 
 // Set to false to disable DeepSeek API calls and use mock data for testing
 const DEEPSEEK_ENABLED = false
-
 
 async function callDeepSeekForOptions(word: string, correctDefinition: string): Promise<string[] | null> {
   // Return mock data when DeepSeek is disabled
@@ -211,26 +94,6 @@ async function callDeepSeekForOptions(word: string, correctDefinition: string): 
   }
 }
 
-async function createQuizQuestion(wordData: WordData): Promise<QuizQuestion> {
-  const sense = wordData.senses[0]
-  const correctDefinition = sense.definition || 'No definition available'
-  const aiOptions = await callDeepSeekForOptions(wordData.word, correctDefinition)
-  if (!aiOptions || aiOptions.length !== 3) {
-    throw new Error('DeepSeek did not return 3 options')
-  }
-  const allOptions = [correctDefinition, ...aiOptions]
-  const shuffled = allOptions.sort(() => Math.random() - 0.5)
-  const correctIndex = shuffled.indexOf(correctDefinition)
-  return {
-    id: wordData.wordId,
-    word: wordData.word,
-    correctDefinition,
-    options: shuffled,
-    correctIndex,
-    wordnetData: { pos: wordData.pos, examples: sense.examples || [] }
-  }
-}
-
 async function saveQuestionToBank(question: QuizQuestion): Promise<void> {
   try {
     const db = await getDb()
@@ -246,203 +109,28 @@ async function saveQuestionToBank(question: QuizQuestion): Promise<void> {
   }
 }
 
-async function handleQuizGeneration(
-  userId: string,
-  send: (event: string, data: unknown) => void,
-  providedWords?: string[]
-): Promise<QuizQuestion[]> {
-  const questions: QuizQuestion[] = []
-  const usedWords = new Set<string>()
-  const target = 50
-
-  // If words are provided, use them; otherwise use random words
-  if (providedWords && providedWords.length > 0) {
-    // Use provided words from dictionary
-    const candidates = await getWordsFromDictionary(providedWords.slice(0, target))
-    send('batch', { batch: 1, fetched: candidates.length, remaining: target - questions.length })
-    
-    for (const w of candidates) {
-      if (questions.length >= target) break
-      if (usedWords.has(w.word)) continue
-      try {
-        // If definition is missing, try to get it from wordnet first
-        if (!w.senses[0]?.definition || w.senses[0].definition === '') {
-          const { getStorage } = await import('@/libs/firebase/admin')
-          const storage = await getStorage()
-          try {
-            const file = storage.bucket().file('data/wordnet.json')
-            const [fileContent] = await file.download()
-            const wordnetData = JSON.parse(fileContent.toString())
-            const wordnetEntry = wordnetData[w.word]
-            if (wordnetEntry?.senses?.[0]?.definition) {
-              w.senses[0].definition = wordnetEntry.senses[0].definition
-            }
-          } catch {
-            // WordNet lookup failed, will use DeepSeek
-          }
-        }
-        
-        const q = await createQuizQuestion(w)
-        questions.push(q)
-        usedWords.add(w.word)
-        send('word', { word: w.word, count: questions.length })
-        await saveQuestionToBank(q)
-      } catch {
-        send('error', { word: w.word, message: 'Failed to create question' })
-      }
-    }
-  } else {
-    // Original random word strategy
-    let batchIndex = 0
-    let consecutiveNoProgress = 0
-    const minNewFirst = 30
-    // Phase 1: create new questions until we reach minNewFirst (or target)
-    while (questions.length < Math.min(minNewFirst, target)) {
-      batchIndex += 1
-      const remaining = target - questions.length
-      const candidates = await getRandomWords(remaining * 3)
-      send('batch', { batch: batchIndex, fetched: candidates.length, remaining })
-      const before = questions.length
-      for (const w of candidates) {
-        if (questions.length >= target) break
-        if (usedWords.has(w.word)) continue
-        try {
-          const q = await createQuizQuestion(w)
-          questions.push(q)
-          usedWords.add(w.word)
-          send('word', { word: w.word, count: questions.length })
-          await saveQuestionToBank(q)
-        } catch {
-          send('error', { word: w.word, message: 'DeepSeek failed' })
-        }
-      }
-
-      // If this batch made no progress, try more candidates; only top-up after a few consecutive no-progress batches
-      if (questions.length === before) {
-        consecutiveNoProgress += 1
-        if (consecutiveNoProgress >= 3) {
-          const needed = Math.min(target - questions.length, Math.max(0, minNewFirst - questions.length))
-          if (needed > 0) {
-            const bankTopup = await getQuestionsFromBank(needed * 3)
-            const uniqueTopup = bankTopup.filter(q => !usedWords.has(q.word)).slice(0, needed)
-            uniqueTopup.forEach(q => usedWords.add(q.word))
-            questions.push(...uniqueTopup)
-            send('admin-bank-topup', { added: uniqueTopup.length, total: questions.length, adminOnly: true })
-          }
-          break
-        }
-      } else {
-        consecutiveNoProgress = 0
-      }
-    }
-
-    // Phase 2: top-up remaining with bank, prioritizing user's weak words (only if not using provided words)
-    if (!providedWords && questions.length < target) {
-      const db = await getDb()
-      const need = target - questions.length
-      // Get prioritized list of weak words
-      const weakWords = await getUserWeakWords(db, userId, need * 3)
-      // Fetch bank pool and map by word for quick lookup
-      const bankPool = await getQuestionsFromBank(need * 5)
-      const byWord = new Map<string, QuizQuestion>()
-      for (const q of bankPool) if (!byWord.has(q.word)) byWord.set(q.word, q)
-
-      const picked: QuizQuestion[] = []
-      // 1) Pick from weakWords first
-      for (const w of weakWords) {
-        if (picked.length >= need) break
-        if (usedWords.has(w)) continue
-        const q = byWord.get(w)
-        if (q) {
-          picked.push(q)
-          usedWords.add(w)
-        }
-      }
-      // 2) Fill remaining from any bank questions
-      if (picked.length < need) {
-        for (const q of bankPool) {
-          if (picked.length >= need) break
-          if (usedWords.has(q.word)) continue
-          picked.push(q)
-          usedWords.add(q.word)
-        }
-      }
-      questions.push(...picked)
-      send('admin-bank-topup', { added: picked.length, total: questions.length, adminOnly: true })
-    }
-  }
-
-  return questions
-}
-
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
-  if (!userId) {
-    return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
-  }
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const encoder = new TextEncoder()
-      const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\n`))
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
-      }
-      try {
-        send('start', { message: 'Starting generation', target: 50 })
-
-        const questions = await handleQuizGeneration(userId, send)
-
-        // Create session
-        const now = new Date()
-        const dateStr = now.toISOString().split('T')[0]
-        const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-')
-        const hash = Math.random().toString(36).substring(2, 8)
-        const sanitizedUserId = userId.replace(/[^a-zA-Z0-9]/g, '_')
-        const sessionId = `${dateStr}_${timeStr}_${sanitizedUserId}_${hash}`
-
-        const session = {
-          id: sessionId,
-          userId,
-          questions,
-          currentQuestion: 0,
-          answers: new Array(questions.length).fill(null),
-          startTime: now,
-          date: dateStr
-        }
-
-        const db = await getDb()
-        await db.collection('quiz_sessions').doc(sessionId).set(session)
-        send('complete', { session })
-        controller.close()
-      } catch (error) {
-        logger.error('SSE generation error:', error instanceof Error ? error : new Error(String(error)))
-        const encoder = new TextEncoder()
-        controller.enqueue(encoder.encode(`event: error\n`))
-        controller.enqueue(encoder.encode(`data: {"error":"internal"}\n\n`))
-        controller.close()
-      }
-    }
-  })
-
-  return new NextResponse(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive'
-    }
-  })
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()
     const userId = body.userId
-    const words = body.words as string[] | undefined
+    // Receive full DictionaryEntry objects from frontend
+    const words = body.words as Array<{
+      word: string
+      definition?: string
+      synonyms?: string[]
+      antonyms?: string[]
+      frequency?: number
+      lastUpdated?: Date | string
+    }> | undefined
+
+    logger.info('SSE: Handling quiz generation', { userId, wordCount: words?.length })
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
+
+    if (!words || words.length === 0) {
+      return NextResponse.json({ error: 'Words array is required' }, { status: 400 })
     }
 
     const stream = new ReadableStream<Uint8Array>({
@@ -453,13 +141,87 @@ export async function POST(request: Request) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
         }
         try {
-          send('start', { message: 'Starting generation', target: 50 })
+          send('start', { message: 'Starting generation', target: words.length })
 
-          const questions = await handleQuizGeneration(userId, send, words)
+          // Use the full DictionaryEntry objects provided (already randomly selected 50 in frontend)
+          logger.info('SSE: Processing provided words', { wordCount: words.length })
 
-          // Create session (but don't save it for background preparation - just prepare questions)
-          // Questions are already saved to bank via saveQuestionToBank
-          send('complete', { message: 'Quiz questions prepared', count: questions.length })
+          const questions: QuizQuestion[] = []
+          const db = await getDb()
+
+          // Process each selected word
+          for (let i = 0; i < words.length; i++) {
+            const wordEntry = words[i]
+            const word = wordEntry.word.toLowerCase().trim()
+            const correctDefinition = wordEntry.definition || 'No definition available'
+            
+            // Check if question exists in quiz_questions
+            let question = await getQuestionFromBankForWord(word)
+            
+            if (question) {
+              // Use existing question
+              logger.info(`SSE: Using existing question for "${word}"`)
+              questions.push(question)
+              send('word', { word, count: questions.length, source: 'bank' })
+            } else {
+              // Generate new question using DeepSeek
+              try {
+
+                // Generate options using DeepSeek
+                const aiOptions = await callDeepSeekForOptions(word, correctDefinition)
+                if (!aiOptions || aiOptions.length !== 3) {
+                  logger.error(`SSE: Failed to generate options for "${word}"`)
+                  send('error', { word, message: 'Failed to generate options' })
+                  continue
+                }
+
+                // Create question
+                const allOptions = [correctDefinition, ...aiOptions]
+                const shuffledOptions = allOptions.sort(() => Math.random() - 0.5)
+                const correctIndex = shuffledOptions.indexOf(correctDefinition)
+
+                question = {
+                  id: word,
+                  word: word,
+                  correctDefinition,
+                  options: shuffledOptions,
+                  correctIndex,
+                  nGramFreq: wordEntry.frequency || 0
+                }
+
+                // Save to quiz_questions bank
+                await saveQuestionToBank(question)
+                questions.push(question)
+                send('word', { word, count: questions.length, source: 'generated' })
+              } catch (error) {
+                logger.error(`SSE: Error generating question for "${word}":`, error instanceof Error ? error : new Error(String(error)))
+                send('error', { word, message: 'Generation failed' })
+              }
+            }
+          }
+
+          // Create and save session with all 50 questions
+          const now = new Date()
+          const dateStr = now.toISOString().split('T')[0]
+          const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-')
+          const hash = Math.random().toString(36).substring(2, 8)
+          const sanitizedUserId = userId.replace(/[^a-zA-Z0-9]/g, '_')
+          const sessionId = `study_${dateStr}_${timeStr}_${sanitizedUserId}_${hash}`
+
+          const session = {
+            id: sessionId,
+            userId,
+            questions,
+            currentQuestion: 0,
+            answers: new Array(questions.length).fill(null),
+            startTime: now,
+            date: dateStr
+          }
+
+          await db.collection('quiz_sessions').doc(sessionId).set(session)
+          logger.info('SSE: Saved quiz session', { sessionId, questionCount: questions.length })
+
+          send('complete', { message: 'Quiz questions prepared', count: questions.length, sessionId })
           controller.close()
         } catch (error) {
           logger.error('SSE POST generation error:', error instanceof Error ? error : new Error(String(error)))

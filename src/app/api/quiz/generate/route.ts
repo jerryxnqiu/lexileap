@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const client = await auth.getIdTokenClient(base)
     const headers = await client.getRequestHeaders()
 
+    logger.info('SSE: Proxying to data-processing instance', { base, userId, words })
     const upstream = await fetch(`${base}/api/quiz/generate-stream`, {
       method: 'POST',
       headers: {
