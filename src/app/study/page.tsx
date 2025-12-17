@@ -252,10 +252,8 @@ export default function StudyPage() {
   // Randomly selects 50 words from the available words and sends them to the backend
   const prepareQuizQuestions = async (wordsToUse?: DictionaryEntry[]) => {
     const wordsForQuiz = wordsToUse || words
-    console.log('[Study] prepareQuizQuestions called', { user: !!user, wordsCount: wordsForQuiz.length, usingProvided: !!wordsToUse })
     
     if (!user || wordsForQuiz.length === 0) {
-      console.log('[Study] prepareQuizQuestions: early return - no user or words')
       return
     }
     
@@ -266,16 +264,12 @@ export default function StudyPage() {
       const shuffled = [...wordsForQuiz].sort(() => Math.random() - 0.5)
       const selectedWords = shuffled.slice(0, WORDS_TO_TEST)
       
-      console.log('[Study] prepareQuizQuestions: selected words', { count: selectedWords.length })
-      
       if (selectedWords.length === 0) {
-        console.log('[Study] prepareQuizQuestions: no words selected')
         setPreparingQuiz(false)
         return
       }
 
       // Send full DictionaryEntry objects directly to backend
-      console.log('[Study] prepareQuizQuestions: calling /api/quiz/generate')
       const response = await fetch('/api/quiz/generate', {
         method: 'POST',
         headers: {
@@ -286,11 +280,8 @@ export default function StudyPage() {
           words: selectedWords
         })
       })
-
-      console.log('[Study] prepareQuizQuestions: response received', { ok: response.ok, status: response.status, hasBody: !!response.body })
       
       if (!response.ok || !response.body) {
-        console.error('[Study] prepareQuizQuestions: response not OK or missing body', { status: response.status })
         setPreparingQuiz(false)
         return
       }

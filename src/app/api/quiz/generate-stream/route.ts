@@ -27,7 +27,7 @@ async function getQuestionFromBankForWord(word: string): Promise<QuizQuestion | 
         correctDefinition: data.correctDefinition,
         options: data.options,
         correctIndex: data.correctIndex,
-        nGramFreq: data.wordnetData || { pos: '', examples: [] }
+        nGramFreq: typeof data.nGramFreq === 'number' ? data.nGramFreq : (data.wordnetData?.frequency || 0)
       }
     }
     return null
