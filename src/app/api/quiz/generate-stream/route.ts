@@ -3,6 +3,7 @@ import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
 import { getSecret } from '@/libs/firebase/secret'
 import { QuizQuestion } from '@/types/quiz'
+import { encryptSessionId } from '@/libs/utils/encryption'
 
 export const dynamic = 'force-dynamic'
 
@@ -221,7 +222,9 @@ export async function POST(request: Request) {
           await db.collection('quiz_sessions').doc(sessionId).set(session)
           logger.info('SSE: Saved quiz session', { sessionId, questionCount: questions.length })
 
-          send('complete', { message: 'Quiz questions prepared', count: questions.length, sessionId })
+          // Encrypt sessionId before sending to client
+          const encryptedToken = await encryptSessionId(sessionId)
+          send('complete', { message: 'Quiz questions prepared', count: questions.length, sessionId, token: encryptedToken })
           controller.close()
         } catch (error) {
           logger.error('SSE POST generation error:', error instanceof Error ? error : new Error(String(error)))

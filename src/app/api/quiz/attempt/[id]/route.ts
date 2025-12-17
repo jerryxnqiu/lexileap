@@ -1,13 +1,21 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { getDb } from '@/libs/firebase/admin'
 import { logger } from '@/libs/utils/logger'
+import { decryptSessionId } from '@/libs/utils/encryption'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
-    const sessionId = id
+    // Try to decrypt if it's an encrypted token, otherwise use as-is
+    let sessionId: string
+    try {
+      sessionId = await decryptSessionId(id)
+    } catch {
+      // If decryption fails, assume it's already a plain sessionId
+      sessionId = id
+    }
     if (!sessionId) {
       return NextResponse.json({ error: 'Missing session id' }, { status: 400 })
     }
