@@ -7,16 +7,12 @@ import { QuizInterface } from '@/app/components/QuizInterface';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { VocabularyList } from '@/app/components/VocabularyList';
-import { WordData } from '@/types/wordnet';
 
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // removed unused wordnetSummary
   const [view, setView] = useState<'menu' | 'quiz' | 'list'>('menu');
-  const [wordnetData, setWordnetData] = useState<Record<string, WordData> | null>(null);
-  const [isWordnetLoading, setIsWordnetLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
@@ -150,27 +146,7 @@ export default function Home() {
                     <span className="text-lg font-semibold">Start testing your vocabulary</span>
                   </button>
                   <button
-                    onClick={async () => {
-                      setView('list');
-                      if (!wordnetData && !isWordnetLoading) {
-                        try {
-                          setIsWordnetLoading(true);
-                          const resp = await fetch('/api/wordnet/file?full=1', { cache: 'no-store' });
-                          const text = await resp.text();
-                          if (!resp.ok || !text) {
-                            setWordnetData({} as Record<string, WordData>);
-                          } else {
-                            const parsed = JSON.parse(text) as Record<string, WordData>;
-                            // Allow either object map or pre-sliced array of keys
-                            setWordnetData(parsed);
-                          }
-                        } catch {
-                          setWordnetData({} as Record<string, WordData>);
-                        } finally {
-                          setIsWordnetLoading(false);
-                        }
-                      }
-                    }}
+                    onClick={() => setView('list')}
                     className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span className="text-xl">📚</span>
@@ -207,9 +183,8 @@ export default function Home() {
 
             {view === 'list' && (
               <div>
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4">
                   <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
-                  {isWordnetLoading && <span className="text-sm text-gray-500">Loading...</span>}
                 </div>
                 <VocabularyList />
               </div>
