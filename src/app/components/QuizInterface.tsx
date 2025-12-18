@@ -1,14 +1,10 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+interface QuizInterfaceProps {
+  onStartStudy: () => void;
+}
 
-export function QuizInterface() {
-  const router = useRouter();
-
-  const startStudy = () => {
-    router.push('/study');
-  };
-
+export function QuizInterface({ onStartStudy }: QuizInterfaceProps) {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center py-12">
@@ -17,7 +13,7 @@ export function QuizInterface() {
           Study 200 words and 50 phrases, then select 50 for testing!
         </p>
         <button
-          onClick={startStudy}
+          onClick={onStartStudy}
           className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
         >
           Start Study Session

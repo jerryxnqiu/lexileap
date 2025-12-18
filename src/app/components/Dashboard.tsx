@@ -9,6 +9,8 @@ import { logger } from '@/libs/utils/logger';
 interface DashboardProps {
   user: User;
   onAttemptClick: (attemptId: string) => void;
+  onStartQuiz?: () => void;
+  onStartStudy?: () => void;
 }
 
 // Helper functions
@@ -165,8 +167,16 @@ function QuizHistory({ attempts, onAttemptClick }: { attempts: UserStats['allAtt
   );
 }
 
-function DashboardEmptyState() {
+function DashboardEmptyState({ onStartQuiz }: { onStartQuiz?: () => void }) {
   const router = useRouter();
+
+  const handleClick = () => {
+    if (onStartQuiz) {
+      onStartQuiz();
+    } else {
+      router.push('/quiz');
+    }
+  };
 
   return (
     <div className="text-center">
@@ -175,7 +185,7 @@ function DashboardEmptyState() {
         <p className="text-lg text-gray-600 mb-4">No quiz data found yet.</p>
         <p className="text-gray-500 mb-6">Take your first quiz to see your progress here!</p>
         <button
-          onClick={() => router.push('/quiz')}
+          onClick={handleClick}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
         >
           Take Your First Quiz
@@ -194,7 +204,7 @@ function DashboardLoadingState() {
 }
 
 // Main Dashboard component
-export function Dashboard({ user, onAttemptClick }: DashboardProps) {
+export function Dashboard({ user, onAttemptClick, onStartQuiz, onStartStudy }: DashboardProps) {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState(30);
@@ -236,7 +246,7 @@ export function Dashboard({ user, onAttemptClick }: DashboardProps) {
   if (!stats) {
     return (
       <div className="bg-white rounded-lg shadow p-4">
-        <DashboardEmptyState />
+        <DashboardEmptyState onStartQuiz={onStartQuiz} />
       </div>
     );
   }
@@ -262,12 +272,21 @@ export function Dashboard({ user, onAttemptClick }: DashboardProps) {
 
       {/* Action Buttons */}
       <div className="mt-8 flex justify-center space-x-4">
-        <a
-          href="/quiz"
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer inline-block text-center"
-        >
-          Take Another Quiz
-        </a>
+        {onStartQuiz ? (
+          <button
+            onClick={onStartQuiz}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+          >
+            Take Another Quiz
+          </button>
+        ) : (
+          <a
+            href="/quiz"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer inline-block text-center"
+          >
+            Take Another Quiz
+          </a>
+        )}
       </div>
     </div>
   );

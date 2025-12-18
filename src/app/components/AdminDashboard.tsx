@@ -11,7 +11,6 @@ interface AdminDashboardProps {
 
 export function AdminDashboard({ user }: AdminDashboardProps) {
   const [mounted, setMounted] = useState(false);
-  const [wordnetRunning, setWordnetRunning] = useState(false);
   const [ngramRunning, setNgramRunning] = useState(false);
   const [deepseekRunning, setDeepseekRunning] = useState(false);
   const [timeRange, setTimeRange] = useState(30);
@@ -116,37 +115,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Data Management Tab */}
       {activeTab === 'data' && (
         <div className="max-w-md mx-auto">
-          <button
-            onClick={async () => {
-              if (wordnetRunning) return;
-              setWordnetRunning(true);
-              try {
-                const res = await fetch('/api/wordnet/generate', { 
-                  method: 'POST'
-                })
-                
-                if (!res.ok) {
-                  const data = await res.json().catch(() => ({}))
-                  showError('WordNet Generation Failed', data.error || res.statusText)
-                } else {
-                  showSuccess('WordNet Job Started', 'Check logs/storage for progress.')
-                }
-              } catch (error) {
-                showError('WordNet Error', error instanceof Error ? error.message : 'Unknown error')
-              } finally {
-                setWordnetRunning(false);
-              }
-            }}
-            disabled={wordnetRunning}
-            aria-busy={wordnetRunning}
-            className={`w-full rounded-lg px-6 py-4 text-white font-semibold shadow-lg transition-all duration-200 ${wordnetRunning ? 'bg-gray-400 cursor-not-allowed' : 'group cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'}`}
-          >
-            <div className={`transition-transform duration-200 ${wordnetRunning ? '' : 'group-hover:translate-x-0.5'}`}>
-              <div>{wordnetRunning ? 'Starting WordNet…' : 'Prepare WordNet Data'}</div>
-              <div className="text-sm opacity-90">{wordnetRunning ? 'Processing WordNet data…' : '(WordNet database processing)'}</div>
-            </div>
-          </button>
-          <div className="h-4" />
           <button
             onClick={async () => {
               if (ngramRunning) return;
