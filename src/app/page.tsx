@@ -7,12 +7,15 @@ import { QuizInterface } from '@/app/components/QuizInterface';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { VocabularyList } from '@/app/components/VocabularyList';
+import { Dashboard } from '@/app/components/Dashboard';
+import { AttemptDetail } from '@/app/components/AttemptDetail';
 
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [view, setView] = useState<'menu' | 'quiz' | 'list'>('menu');
+  const [view, setView] = useState<'menu' | 'quiz' | 'list' | 'dashboard' | 'attempt'>('menu');
+  const [attemptId, setAttemptId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
@@ -150,13 +153,13 @@ export default function Home() {
                     <span className="text-xl">📚</span>
                     <span className="text-lg font-semibold">Review all vocabulary</span>
                   </button>
-                  <a
-                    href="/dashboard"
-                    className="rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2"
+                  <button
+                    onClick={() => setView('dashboard')}
+                    className="rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2 cursor-pointer"
                   >
                     <span className="text-xl">📈</span>
                     <span className="text-lg font-semibold">Review your past scores</span>
-                  </a>
+                  </button>
                   {user.isAdmin && (
                     <a
                       href="/admin"
@@ -195,6 +198,49 @@ export default function Home() {
                   </button>
                 </div>
                 <VocabularyList />
+              </div>
+            )}
+
+            {view === 'dashboard' && (
+              <div>
+                <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
+                  <button 
+                    onClick={() => setView('menu')}
+                    className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
+                  >
+                    ← Back to Menu
+                  </button>
+                </div>
+                <Dashboard 
+                  user={user} 
+                  onAttemptClick={(id) => {
+                    setAttemptId(id);
+                    setView('attempt');
+                  }}
+                />
+              </div>
+            )}
+
+            {view === 'attempt' && attemptId && (
+              <div>
+                <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
+                  <button 
+                    onClick={() => {
+                      setView('dashboard');
+                      setAttemptId(null);
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
+                  >
+                    ← Back to Dashboard
+                  </button>
+                </div>
+                <AttemptDetail 
+                  attemptId={attemptId} 
+                  onBack={() => {
+                    setView('dashboard');
+                    setAttemptId(null);
+                  }}
+                />
               </div>
             )}
 
