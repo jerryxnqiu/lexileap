@@ -13,6 +13,8 @@ function QuizPageContent() {
   const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1500); // each question is 30 seconds
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmCallback, setConfirmCallback] = useState<(() => void) | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionRef = useRef<QuizSession | null>(null);
@@ -251,6 +253,24 @@ function QuizPageContent() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const showConfirm = (callback: () => void) => {
+    setConfirmCallback(() => callback);
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirm = () => {
+    if (confirmCallback) {
+      confirmCallback();
+    }
+    setShowConfirmDialog(false);
+    setConfirmCallback(null);
+  };
+
+  const handleCancel = () => {
+    setShowConfirmDialog(false);
+    setConfirmCallback(null);
+  };
+
   if (loading || submitting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100 flex items-center justify-center">
@@ -313,11 +333,7 @@ function QuizPageContent() {
                 Study More Words
               </button>
               <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to go back to home?')) {
-                    router.push('/')
-                  }
-                }}
+                onClick={() => showConfirm(() => router.push('/'))}
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
               >
                 Back to Home
@@ -403,11 +419,7 @@ function QuizPageContent() {
                   {/* Back to Home - separate row below, left aligned */}
                   <div className="flex justify-start">
                     <button
-                      onClick={() => {
-                        if (confirm('Are you sure you want to go back to home? Your quiz progress will be lost.')) {
-                          router.push('/')
-                        }
-                      }}
+                      onClick={() => showConfirm(() => router.push('/'))}
                       className="px-6 py-3 text-gray-600 hover:text-gray-800 cursor-pointer"
                     >
                       ← Back to Home
@@ -419,6 +431,34 @@ function QuizPageContent() {
           </div>
         )}
       </main>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Confirm Action</h3>
+            <p className="text-gray-700 mb-6">
+              {session && !session.endTime 
+                ? 'Are you sure you want to go back to home? Your quiz progress will be lost.'
+                : 'Are you sure you want to go back to home?'}
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={handleCancel}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 cursor-pointer transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
