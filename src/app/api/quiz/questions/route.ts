@@ -16,38 +16,45 @@ export async function GET(request: NextRequest) {
 
     const db = await getDb()
     
-    // Get total count
-    const totalSnapshot = await db.collection('quiz_questions').count().get()
+    // Get total count of dictionary entries with definitions
+    const totalSnapshot = await db.collection('dictionary')
+      .where('definition', '!=', null)
+      .count()
+      .get()
     const total = totalSnapshot.data().count
 
-    // For Firestore, we'll use offset-based pagination (works fine for moderate datasets)
-    // Note: offset() can be slow for large offsets, but for vocabulary review it should be acceptable
+    // Calculate pagination
     const offset = (page - 1) * pageSize
     
-    // Fetch paginated questions, ordered by word for consistency
-    let query = db.collection('quiz_questions')
-      .orderBy('word', 'asc')
+    // Fetch paginated dictionary entries
+    // Note: In dictionary collection, the document ID is the word itself
+    // We'll fetch all and sort client-side, or use a different approach
+    // For now, we'll fetch with limit and offset (Firestore supports this)
+    let query = db.collection('dictionary')
+      .where('definition', '!=', null)
       .limit(pageSize)
     
-    // Use offset for pagination (Firestore supports this)
+    // Use offset for pagination
     if (offset > 0) {
       query = query.offset(offset) as any
     }
     
     const snapshot = await query.get()
 
-    const items = snapshot.docs.map(doc => {
-      const data = doc.data()
-      return {
-        word: data.word || '',
-        definition: data.correctDefinition || '',
-        options: data.options || [],
-        correctIndex: data.correctIndex ?? 0,
-        timesTested: data.timesTested || 0,
-        timesCorrect: data.timesCorrect || 0,
-        lastUsed: data.lastUsed?.toDate ? data.lastUsed.toDate().toISOString() : null
-      }
-    })
+    const items = snapshot.docs
+      .map(doc => {
+        const data = doc.data()
+        const word = doc.id.toLowerCase().trim() // Document ID is the word
+        return {
+          word: word,
+          definition: data.definition || '',
+          synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
+          antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
+          frequency: typeof data.frequency === 'number' ? data.frequency : 0,
+          lastUpdated: data.lastUpdated?.toDate ? data.lastUpdated.toDate().toISOString() : null
+        }
+      })
+      .sort((a, b) => a.word.localeCompare(b.word)) // Sort alphabetically
 
     return NextResponse.json({
       total,
@@ -56,7 +63,7 @@ export async function GET(request: NextRequest) {
       items
     })
   } catch (error) {
-    logger.error('Quiz questions fetch error:', error instanceof Error ? error : new Error(String(error)))
-    return NextResponse.json({ error: 'Failed to load quiz questions' }, { status: 500 })
+    logger.error('Dictionary fetch error:', error instanceof Error ? error : new Error(String(error)))
+    return NextResponse.json({ error: 'Failed to load dictionary' }, { status: 500 })
   }
 }

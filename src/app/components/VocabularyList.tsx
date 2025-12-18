@@ -9,11 +9,10 @@ export function VocabularyList() {
   const [items, setItems] = useState<Array<{ 
     word: string; 
     definition?: string; 
-    options?: string[];
-    correctIndex?: number;
-    timesTested?: number;
-    timesCorrect?: number;
-    lastUsed?: string | null;
+    synonyms?: string[];
+    antonyms?: string[];
+    frequency?: number;
+    lastUpdated?: string | null;
   }>>([]);
   const [loading, setLoading] = useState(false);
 
@@ -30,11 +29,10 @@ export function VocabularyList() {
           items: Array<{ 
             word: string; 
             definition?: string; 
-            options?: string[];
-            correctIndex?: number;
-            timesTested?: number;
-            timesCorrect?: number;
-            lastUsed?: string | null;
+            synonyms?: string[];
+            antonyms?: string[];
+            frequency?: number;
+            lastUpdated?: string | null;
           }> 
         };
         setTotal(payload.total || 0);
@@ -68,8 +66,7 @@ export function VocabularyList() {
               <tr className="text-left text-gray-600">
                 <th className="py-2 px-3 border-b">Word</th>
                 <th className="py-2 px-3 border-b">Definition</th>
-                <th className="py-2 px-3 border-b">Options</th>
-                <th className="py-2 px-3 border-b">Stats</th>
+                <th className="py-2 px-3 border-b">Additional Info</th>
               </tr>
             </thead>
             <tbody>
@@ -77,36 +74,31 @@ export function VocabularyList() {
                 <tr key={`${it.word}-${idx}`} className="odd:bg-white even:bg-gray-50">
                   <td className="py-2 px-3 font-medium text-gray-900 align-top">{it.word}</td>
                   <td className="py-2 px-3 text-gray-800 align-top">{it.definition || '-'}</td>
-                  <td className="py-2 px-3 text-gray-700 align-top">
-                    {it.options && it.options.length > 0 ? (
-                      <div className="space-y-1">
-                        {it.options.map((option, optIdx) => (
-                          <div 
-                            key={optIdx} 
-                            className={`text-xs ${optIdx === it.correctIndex ? 'text-green-600 font-semibold' : 'text-gray-600'}`}
-                          >
-                            {String.fromCharCode(65 + optIdx)}. {option}
-                            {optIdx === it.correctIndex && ' ✓'}
-                          </div>
-                        ))}
-                      </div>
-                    ) : '-'}
-                  </td>
-                  <td className="py-2 px-3 text-gray-700 align-top text-xs">
-                    {it.timesTested !== undefined && it.timesTested > 0 ? (
-                      <div>
-                        <div>Tested: {it.timesTested}</div>
-                        <div>Correct: {it.timesCorrect || 0}</div>
-                        <div className="text-blue-600">
-                          Accuracy: {Math.round(((it.timesCorrect || 0) / it.timesTested) * 100)}%
+                  <td className="py-2 px-3 text-gray-700 align-top text-sm">
+                    <div className="space-y-1">
+                      {it.synonyms && it.synonyms.length > 0 && (
+                        <div>
+                          <span className="font-semibold text-blue-600">Synonyms:</span>{' '}
+                          <span className="text-gray-600">{it.synonyms.join(', ')}</span>
                         </div>
-                        {it.lastUsed && (
-                          <div className="text-gray-500 mt-1">
-                            Last: {new Date(it.lastUsed).toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
-                    ) : 'Not tested yet'}
+                      )}
+                      {it.antonyms && it.antonyms.length > 0 && (
+                        <div>
+                          <span className="font-semibold text-red-600">Antonyms:</span>{' '}
+                          <span className="text-gray-600">{it.antonyms.join(', ')}</span>
+                        </div>
+                      )}
+                      {it.frequency !== undefined && it.frequency > 0 && (
+                        <div className="text-gray-500 text-xs mt-1">
+                          Frequency: {it.frequency}
+                        </div>
+                      )}
+                      {it.lastUpdated && (
+                        <div className="text-gray-500 text-xs mt-1">
+                          Last updated: {new Date(it.lastUpdated).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
