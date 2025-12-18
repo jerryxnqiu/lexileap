@@ -9,12 +9,13 @@ import { User } from '@/types/user';
 import { VocabularyList } from '@/app/components/VocabularyList';
 import { Dashboard } from '@/app/components/Dashboard';
 import { AttemptDetail } from '@/app/components/AttemptDetail';
+import { AdminDashboard } from '@/app/components/AdminDashboard';
 
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [view, setView] = useState<'menu' | 'quiz' | 'list' | 'dashboard' | 'attempt'>('menu');
+  const [view, setView] = useState<'menu' | 'quiz' | 'list' | 'dashboard' | 'attempt' | 'admin'>('menu');
   const [attemptId, setAttemptId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -161,13 +162,13 @@ export default function Home() {
                     <span className="text-lg font-semibold">Review your past scores</span>
                   </button>
                   {user.isAdmin && (
-                    <a
-                      href="/admin"
-                      className="rounded-3xl bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2 text-center"
+                    <button
+                      onClick={() => setView('admin')}
+                      className="rounded-3xl bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-6 text-white shadow-md ring-1 ring-black/5 hover:shadow-lg hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 sm:col-span-2 cursor-pointer"
                     >
                       <span className="text-xl">🛠️</span>
                       <span className="text-lg font-semibold">Admin Dashboard</span>
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
@@ -241,6 +242,20 @@ export default function Home() {
                     setAttemptId(null);
                   }}
                 />
+              </div>
+            )}
+
+            {view === 'admin' && (
+              <div>
+                <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
+                  <button 
+                    onClick={() => setView('menu')}
+                    className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
+                  >
+                    ← Back to Menu
+                  </button>
+                </div>
+                <AdminDashboard user={user} />
               </div>
             )}
 
