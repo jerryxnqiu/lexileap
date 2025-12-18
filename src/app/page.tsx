@@ -172,8 +172,13 @@ export default function Home() {
 
             {view === 'quiz' && (
               <div>
-                <div className="mb-4 sticky top-20 z-10 bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100/95 backdrop-blur">
-                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
+                <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
+                  <button 
+                    onClick={() => setView('menu')}
+                    className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
+                  >
+                    ← Back to Menu
+                  </button>
                 </div>
                 <QuizInterface />
               </div>
@@ -181,8 +186,13 @@ export default function Home() {
 
             {view === 'list' && (
               <div>
-                <div className="mb-4 sticky top-20 z-10 bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100/95 backdrop-blur">
-                  <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
+                <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
+                  <button 
+                    onClick={() => setView('menu')}
+                    className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
+                  >
+                    ← Back to Menu
+                  </button>
                 </div>
                 <VocabularyList />
               </div>
