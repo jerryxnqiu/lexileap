@@ -229,10 +229,19 @@ function QuizPageContent() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (loading) {
+  if (loading || submitting) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative w-56 h-56 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200 animate-pulse"></div>
+            <div className="absolute inset-4 rounded-full bg-white shadow-inner flex items-center justify-center">
+              <div className="text-3xl font-bold text-indigo-700">{submitting ? 'Submitting...' : 'Loading...'}</div>
+            </div>
+          </div>
+          <p className="text-lg text-gray-700 font-semibold">{submitting ? 'Submitting your quiz results' : 'Preparing your quiz'}</p>
+          <p className="text-sm text-gray-500 mt-2">Please wait a moment</p>
+        </div>
       </div>
     );
   }
@@ -390,8 +399,17 @@ function QuizPageContent() {
 export default function QuizPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative w-56 h-56 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200 animate-pulse"></div>
+            <div className="absolute inset-4 rounded-full bg-white shadow-inner flex items-center justify-center">
+              <div className="text-3xl font-bold text-indigo-700">Loading...</div>
+            </div>
+          </div>
+          <p className="text-lg text-gray-700 font-semibold">Preparing your quiz</p>
+          <p className="text-sm text-gray-500 mt-2">Please wait a moment</p>
+        </div>
       </div>
     }>
       <QuizPageContent />
