@@ -236,7 +236,7 @@ export function Quiz({ user, token, sessionId, onBack, onStudyMore }: QuizProps)
           <div className="relative w-56 h-56 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200 animate-pulse"></div>
             <div className="absolute inset-4 rounded-full bg-white shadow-inner flex items-center justify-center">
-              <div className="text-3xl font-bold text-indigo-700">{submitting ? 'Submitting...' : 'Loading...'}</div>
+              <div className="text-3xl font-bold text-indigo-700">{submitting ? 'Calculating your score...' : 'Loading...'}</div>
             </div>
           </div>
           <p className="text-lg text-gray-700 font-semibold">{submitting ? 'Submitting your quiz results' : 'Preparing your quiz'}</p>
@@ -283,20 +283,20 @@ export function Quiz({ user, token, sessionId, onBack, onStudyMore }: QuizProps)
               Great job, {user.name || user.email}!
             </div>
           </div>
-          <div className="space-x-4">
-            <button
-              onClick={onStudyMore}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
-            >
-              Study More Words
-            </button>
-            <button
-              onClick={() => showConfirm(onBack)}
-              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
-            >
-              Back to Home
-            </button>
-          </div>
+            <div className="space-x-4">
+              <button
+                onClick={onStudyMore}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+              >
+                Study More Words
+              </button>
+              <button
+                onClick={onBack}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+              >
+                Back to Home
+              </button>
+            </div>
         </div>
       ) : (
         <div className="max-w-4xl mx-auto">
