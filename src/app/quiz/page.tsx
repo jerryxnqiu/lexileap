@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/app/components/Header';
 import { User } from '@/types/user';
 import { QuizSession } from '@/types/quiz';
 
-export default function QuizPage() {
+function QuizPageContent() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<QuizSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -384,5 +384,17 @@ export default function QuizPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function QuizPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <QuizPageContent />
+    </Suspense>
   );
 }
