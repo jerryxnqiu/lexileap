@@ -285,7 +285,11 @@ function QuizPageContent() {
             </div>
             <div className="space-x-4">
               <button
-                onClick={() => router.push('/')}
+                onClick={() => {
+                  if (confirm('Are you sure you want to go back to home? Your quiz progress will be lost.')) {
+                    router.push('/')
+                  }
+                }}
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
               >
                 Back to Home
@@ -380,7 +384,11 @@ function QuizPageContent() {
                   {/* Back to Home - separate row below, left aligned */}
                   <div className="flex justify-start">
                     <button
-                      onClick={() => router.push('/')}
+                      onClick={() => {
+                        if (confirm('Are you sure you want to go back to home? Your quiz progress will be lost.')) {
+                          router.push('/')
+                        }
+                      }}
                       className="px-6 py-3 text-gray-600 hover:text-gray-800 cursor-pointer"
                     >
                       ← Back to Home
