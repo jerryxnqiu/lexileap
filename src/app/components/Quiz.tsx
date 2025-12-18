@@ -391,8 +391,8 @@ export function Quiz({ user, token, sessionId, onBack, onStudyMore }: QuizProps)
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4 border border-gray-200">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Confirm Action</h3>
             <p className="text-gray-700 mb-6">
               {session && !session.endTime 
