@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -103,8 +103,6 @@ export default function Home() {
               </ol>
             </div>
 
-            {/* Admin link removed; access controlled elsewhere */}
-            
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-extrabold text-gray-800 mb-4">
                 My daughters loves LexiLeap 💖
@@ -174,7 +172,7 @@ export default function Home() {
 
             {view === 'quiz' && (
               <div>
-                <div className="mb-4">
+                <div className="mb-4 sticky top-20 z-10 bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100/95 backdrop-blur">
                   <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
                 </div>
                 <QuizInterface />
@@ -183,7 +181,7 @@ export default function Home() {
 
             {view === 'list' && (
               <div>
-                <div className="mb-4">
+                <div className="mb-4 sticky top-20 z-10 bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100/95 backdrop-blur">
                   <button onClick={() => setView('menu')} className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer">← Back</button>
                 </div>
                 <VocabularyList />
