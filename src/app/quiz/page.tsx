@@ -85,6 +85,28 @@ function QuizPageContent() {
     }
   }, []); // No dependencies - uses refs instead
 
+  // Timer countdown effect (after finishQuiz is declared)
+  useEffect(() => {
+    if (!session || session.endTime || submitting) return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 0) {
+          // Time's up - auto-finish quiz
+          const currentSession = sessionRef.current;
+          const currentUser = userRef.current;
+          if (currentSession && currentUser && !submittingRef.current) {
+            finishQuiz();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [session, submitting, finishQuiz]);
+
   const startQuiz = useCallback(async (sessionIdOverride?: string) => {
     if (!user) return;
     
@@ -285,23 +307,20 @@ function QuizPageContent() {
             </div>
             <div className="space-x-4">
               <button
+                onClick={() => router.push('/study')}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+              >
+                Study More Words
+              </button>
+              <button
                 onClick={() => {
-                  if (confirm('Are you sure you want to go back to home? Your quiz progress will be lost.')) {
+                  if (confirm('Are you sure you want to go back to home?')) {
                     router.push('/')
                   }
                 }}
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
               >
                 Back to Home
-              </button>
-              <button
-                onClick={() => {
-                  setSession(null);
-                  startQuiz();
-                }}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Take Another Quiz
               </button>
             </div>
           </div>
@@ -377,7 +396,7 @@ function QuizPageContent() {
                       disabled={session.answers[session.currentQuestion] === null || submitting}
                       className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
-                      {submitting ? 'Submitting...' : (session.currentQuestion === session.questions.length - 1 ? 'Finish Quiz' : 'Next Question')}
+                      {submitting ? 'Calculating your score...' : (session.currentQuestion === session.questions.length - 1 ? 'Finish Quiz' : 'Next Question')}
                     </button>
                   </div>
 
