@@ -121,6 +121,101 @@ function isWord(text: string): boolean {
   return trimmed.split(/\s+/).length === 1
 }
 
+// Helper function to get the first letter of a word/phrase (for diversity)
+function getFirstLetter(text: string): string {
+  const trimmed = text.trim().toLowerCase()
+  return trimmed.charAt(0) || 'z' // Default to 'z' if empty
+}
+
+// Selects items with better distribution across first letters
+// Groups items by first letter, then interleaves selections to ensure diversity
+function selectWithLetterDiversity<T extends { gram: string }>(
+  items: T[],
+  targetCount: number,
+  usedSet: Set<string>
+): T[] {
+  if (items.length === 0 || targetCount === 0) return []
+  
+  // Filter out already used items
+  const available = items.filter(item => {
+    const key = item.gram.toLowerCase().trim()
+    return !usedSet.has(key)
+  })
+  
+  if (available.length === 0) return []
+  
+  // Group by first letter
+  const byLetter = new Map<string, T[]>()
+  for (const item of available) {
+    const letter = getFirstLetter(item.gram)
+    if (!byLetter.has(letter)) {
+      byLetter.set(letter, [])
+    }
+    byLetter.get(letter)!.push(item)
+  }
+  
+  // Shuffle within each letter group
+  for (const [letter, group] of byLetter.entries()) {
+    byLetter.set(letter, group.sort(() => Math.random() - 0.5))
+  }
+  
+  // Interleave selections across letters to ensure diversity
+  const selected: T[] = []
+  const letterIndices = new Map<string, number>()
+  const letters = Array.from(byLetter.keys()).sort(() => Math.random() - 0.5) // Shuffle letter order
+  
+  // Initialize indices
+  for (const letter of letters) {
+    letterIndices.set(letter, 0)
+  }
+  
+  // Round-robin selection: take one from each letter group in turn
+  while (selected.length < targetCount && selected.length < available.length) {
+    let foundAny = false
+    
+    for (const letter of letters) {
+      if (selected.length >= targetCount) break
+      
+      const group = byLetter.get(letter)!
+      const index = letterIndices.get(letter)!
+      
+      if (index < group.length) {
+        const item = group[index]
+        const key = item.gram.toLowerCase().trim()
+        if (!usedSet.has(key)) {
+          selected.push(item)
+          usedSet.add(key)
+          foundAny = true
+        }
+        letterIndices.set(letter, index + 1)
+      }
+    }
+    
+    // If we couldn't find any more items, break
+    if (!foundAny) break
+  }
+  
+  // If we still need more items and have exhausted round-robin, fill randomly
+  if (selected.length < targetCount) {
+    const remaining = available.filter(item => {
+      const key = item.gram.toLowerCase().trim()
+      return !usedSet.has(key)
+    })
+    
+    const shuffled = remaining.sort(() => Math.random() - 0.5)
+    for (const item of shuffled) {
+      if (selected.length >= targetCount) break
+      const key = item.gram.toLowerCase().trim()
+      if (!usedSet.has(key)) {
+        selected.push(item)
+        usedSet.add(key)
+      }
+    }
+  }
+  
+  return selected.slice(0, targetCount)
+}
+
 
 // Prioritizes words and phrases from "priorityWords" (dictionary entries) and fills the rest from JSON
 // Uses word length (1 gram = word, >1 gram = phrase) to distinguish between them
@@ -173,59 +268,61 @@ function prioritizeWords(
   const wordPriorityCount = Math.floor(wordTargetCount * priorityPercentage)
   const phrasePriorityCount = Math.floor(phrasesTargetCount * priorityPercentage)
 
-  // Process words
-  const prioritizedWords: WordData[] = []
+  // Process words - select priority words with letter diversity
   const usedWords = new Set<string>()
+  const priorityWordCandidates: WordData[] = []
   
+  // Collect all available priority words (don't mark as used yet)
   for (const priorityWord of priorityWordsList) {
-    if (prioritizedWords.length >= wordPriorityCount) break
     const key = priorityWord.toLowerCase().trim()
-    if (wordMap.has(key) && !usedWords.has(key)) {
-      prioritizedWords.push(wordMap.get(key)!)
-      usedWords.add(key)
+    if (wordMap.has(key)) {
+      priorityWordCandidates.push(wordMap.get(key)!)
     }
   }
-
-  const remainingWords: WordData[] = []
-  const wordsFromJson: string[] = []
-  const shuffledWords = [...allWords].sort(() => Math.random() - 0.5)
   
-  for (const word of shuffledWords) {
-    if (prioritizedWords.length + remainingWords.length >= wordTargetCount) break
-    const key = word.gram.toLowerCase().trim()
-    if (!usedWords.has(key)) {
-      remainingWords.push({ ...word, gram: key })
-      wordsFromJson.push(key)
-      usedWords.add(key)
-    }
-  }
+  // Select from priority candidates with letter diversity (this will mark them as used)
+  const prioritizedWords = selectWithLetterDiversity(
+    priorityWordCandidates,
+    wordPriorityCount,
+    usedWords
+  )
 
-  // Process phrases
-  const prioritizedPhrases: WordData[] = []
+  // Select remaining words from JSON with letter diversity
+  const remainingWordCount = wordTargetCount - prioritizedWords.length
+  const remainingWords = selectWithLetterDiversity(
+    allWords.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() })),
+    remainingWordCount,
+    usedWords
+  )
+  const wordsFromJson = remainingWords.map(w => w.gram.toLowerCase().trim())
+
+  // Process phrases - select priority phrases with letter diversity
   const usedPhrases = new Set<string>()
+  const priorityPhraseCandidates: WordData[] = []
   
+  // Collect all available priority phrases (don't mark as used yet)
   for (const priorityPhrase of priorityPhrasesList) {
-    if (prioritizedPhrases.length >= phrasePriorityCount) break
     const key = priorityPhrase.toLowerCase().trim()
-    if (phraseMap.has(key) && !usedPhrases.has(key)) {
-      prioritizedPhrases.push(phraseMap.get(key)!)
-      usedPhrases.add(key)
+    if (phraseMap.has(key)) {
+      priorityPhraseCandidates.push(phraseMap.get(key)!)
     }
   }
-
-  const remainingPhrases: WordData[] = []
-  const phrasesFromJson: string[] = []
-  const shuffledPhrases = [...allPhrases].sort(() => Math.random() - 0.5)
   
-  for (const phrase of shuffledPhrases) {
-    if (prioritizedPhrases.length + remainingPhrases.length >= phrasesTargetCount) break
-    const key = phrase.gram.toLowerCase().trim()
-    if (!usedPhrases.has(key)) {
-      remainingPhrases.push({ ...phrase, gram: key })
-      phrasesFromJson.push(key)
-      usedPhrases.add(key)
-    }
-  }
+  // Select from priority candidates with letter diversity (this will mark them as used)
+  const prioritizedPhrases = selectWithLetterDiversity(
+    priorityPhraseCandidates,
+    phrasePriorityCount,
+    usedPhrases
+  )
+
+  // Select remaining phrases from JSON with letter diversity
+  const remainingPhraseCount = phrasesTargetCount - prioritizedPhrases.length
+  const remainingPhrases = selectWithLetterDiversity(
+    allPhrases.map(p => ({ ...p, gram: p.gram.toLowerCase().trim() })),
+    remainingPhraseCount,
+    usedPhrases
+  )
+  const phrasesFromJson = remainingPhrases.map(p => p.gram.toLowerCase().trim())
 
   const finalWords = [...prioritizedWords, ...remainingWords]
   const finalPhrases = [...prioritizedPhrases, ...remainingPhrases]
@@ -320,15 +417,21 @@ export async function GET(request: Request) {
       logger.info(`Found ${matchingDictionaryEntries.length} matching dictionary entries for selected words/phrases`)
 
     } else {
-      // No userId, all words are from JSON - normalize to lowercase
-      words = [...allWords]
-        .map(w => ({ ...w, gram: w.gram.toLowerCase().trim() }))
-        .sort(() => Math.random() - 0.5)
-        .slice(0, WORDS_TARGET)
-      phrases = [...allPhrases]
-        .map(p => ({ ...p, gram: p.gram.toLowerCase().trim() }))
-        .sort(() => Math.random() - 0.5)
-        .slice(0, PHRASES_TARGET)
+      // No userId, all words are from JSON - select with letter diversity
+      const usedWordsNoUser = new Set<string>()
+      const usedPhrasesNoUser = new Set<string>()
+      
+      words = selectWithLetterDiversity(
+        allWords.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() })),
+        WORDS_TARGET,
+        usedWordsNoUser
+      )
+      phrases = selectWithLetterDiversity(
+        allPhrases.map(p => ({ ...p, gram: p.gram.toLowerCase().trim() })),
+        PHRASES_TARGET,
+        usedPhrasesNoUser
+      )
+      
       wordsFromJson = words.map(w => w.gram)
       phrasesFromJson = phrases.map(p => p.gram)
     }

@@ -58,9 +58,23 @@ async function callDeepSeekForOptions(word: string, correctDefinition: string): 
       logger.error('SSE: DeepSeek key missing')
       return null
     }
-    const prompt = `Generate three plausible but incorrect definitions for the English word "${word}".\n` +
-      `The correct definition is: ${correctDefinition}.\n` +
-      `Rules:\n- Do NOT repeat the correct meaning.\n- Keep each option concise (max 15 words).\n- Return ONLY a JSON array of strings.`
+    const prompt = `Generate three plausible but incorrect definitions for the English word "${word}".
+The correct definition is: ${correctDefinition}.
+
+CRITICAL REQUIREMENTS:
+- Return EXACTLY 3 incorrect definitions as a JSON array of strings
+- Each definition must be a complete sentence or phrase (not just a single word)
+- Each definition should be plausible but clearly different from the correct meaning
+- Keep each definition concise (max 15 words)
+- Use simple language suitable for children under 12 years old
+- Do NOT repeat or closely mirror the correct definition
+- Make the distractors believable but wrong (e.g., for "cat", don't use "a type of dog")
+
+RETURN FORMAT:
+Return ONLY a valid JSON array with exactly 3 string elements, for example:
+["A definition that sounds plausible but is wrong", "Another incorrect but believable definition", "A third distractor definition"]
+
+Do NOT include any explanation, markdown formatting, or additional text - ONLY the JSON array.`
     const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },

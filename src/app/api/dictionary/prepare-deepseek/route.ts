@@ -61,28 +61,61 @@ async function fetchWithRetry(url: string, body: Record<string, unknown>, maxRet
   throw new Error(`Failed after ${maxRetries} attempts`)
 }
 
+
+// Set to false to disable DeepSeek API calls and use mock data for testing
+const DEEPSEEK_ENABLED = false
+
+
 async function getDeepSeekDefinition(word: string): Promise<{ definition: string | null, synonyms: string[], antonyms: string[] }> {
   const cacheKey = `deepseek:${word}`
   if (apiCache.has(cacheKey)) {
     return apiCache.get(cacheKey)!
   }
 
+  // Return mock data when DeepSeek is disabled
+  if (!DEEPSEEK_ENABLED) {
+    logger.info(`[MOCK] Returning mock definition for "${word}" (DeepSeek disabled)`)
+    const mockResult = {
+      definition: `A sample definition for the word "${word}". This is mock data for testing.`,
+      synonyms: ['synonym1', 'synonym2', 'synonym3'],
+      antonyms: ['antonym1', 'antonym2']
+    }
+    apiCache.set(cacheKey, mockResult)
+    return mockResult
+  }
+
   try {
     const prompt = `Please provide an Australian English dictionary entry for the word "${word}". Return your response as a JSON object with the following structure:
 {
-  "definition": "A clear, concise definition of the word (or null if the word is not a valid English word)",
+  "definition": "A clear, simple definition of the word (or null if the word is not a valid English word)",
   "synonyms": ["list", "of", "up", "to", "10", "synonyms"],
   "antonyms": ["list", "of", "up", "to", "10", "antonyms"]
 }
 
-Guidelines:
-- Please make it suitable for vocabulary learning for children under 12 years old
+CRITICAL GUIDELINES FOR CHILDREN UNDER 12:
+- Use VERY SIMPLE language that a 7-12 year old can understand
+- Use short sentences (max 15 words per definition)
+- Avoid difficult words in the definition - if you must use a word, explain it simply
+- Use everyday examples when helpful (e.g., "A cat is a small furry pet that meows")
+- Break down complex concepts into simple parts
+- If the word is too difficult for children, still provide a simplified version using the simplest possible explanation
+- Focus on what the word means in everyday life, not technical or academic meanings
+- Use words a child would know (e.g., "big" not "enormous", "happy" not "jubilant")
+
+CONTEXT: This word comes from Google's ngram dataset (real-world book usage with high frequency). 
+- Prioritize the MOST COMMON, everyday meaning that children would encounter in books or daily life
+- If the word has multiple meanings, choose the one most relevant for children's vocabulary learning
+- For words from specific contexts (literary, historical, scientific), focus on the general, accessible meaning
+- Even if the word seems advanced, provide the simplest possible explanation that captures its core meaning
+- If the word is genuinely inappropriate or unsuitable for children, set definition to null
+- If the word can be used as different parts of speech (noun, verb, adjective, adverb), provide the most common usage in simple language
+
+Additional Guidelines:
 - If the word is not a valid English word, set definition to null
 - Provide a clear, educational definition suitable for vocabulary learning
-- Include relevant synonyms and antonyms
+- Include relevant synonyms and antonyms (also use simple words that children would understand)
 - Keep definitions concise but informative
-- Focus on the most common meanings
-- If word has meaning for noun, verb, adjective, or adverb, please provide the definition for each part of speech
+- Focus on meanings that help children expand their vocabulary naturally
 - Return only valid JSON, no additional text`
 
     const response = await fetchWithRetry('https://api.deepseek.com/v1/chat/completions', {
@@ -94,7 +127,7 @@ Guidelines:
         }
       ],
       temperature: 0.3,
-      max_tokens: 500
+      max_tokens: 600
     })
 
     const data = await response.json()
