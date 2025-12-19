@@ -56,7 +56,7 @@ async function fetchWithRetry(url: string, body: Record<string, unknown>, maxRet
 
 
 // Set to false to disable DeepSeek API calls and use mock data for testing
-const DEEPSEEK_ENABLED = false
+const DEEPSEEK_ENABLED = true
 
 
 async function getDeepSeekDefinition(text: string, isPhrase: boolean = false): Promise<{ definition: string | null, synonyms: string[], antonyms: string[] }> {

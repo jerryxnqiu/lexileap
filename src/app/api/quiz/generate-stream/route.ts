@@ -39,7 +39,7 @@ async function getQuestionFromBankForWord(word: string): Promise<QuizQuestion | 
 }
 
 // Set to false to disable DeepSeek API calls and use mock data for testing
-const DEEPSEEK_ENABLED = false
+const DEEPSEEK_ENABLED = true
 
 async function callDeepSeekForOptions(word: string, correctDefinition: string): Promise<string[] | null> {
   // Return mock data when DeepSeek is disabled
