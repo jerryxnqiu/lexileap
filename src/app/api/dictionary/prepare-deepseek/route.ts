@@ -195,12 +195,7 @@ async function getWordsFromStorage(): Promise<WordData[]> {
         if (exists) {
           const [contents] = await file.download()
           const words: WordData[] = JSON.parse(contents.toString())
-          // Add rank based on position in array (1 = most frequent, already sorted by frequency descending)
-          const wordsWithRank = words.map((w, index) => ({
-            ...w,
-            rank: index + 1 // Rank 1 is most frequent
-          }))
-          allWords.push(...wordsWithRank)
+          allWords.push(...words)
           logger.info(`Loaded ${words.length} words from ${filePath}`)
         }
       } catch (error) {
@@ -264,13 +259,17 @@ export async function POST() {
           // Fetch definition, synonyms, and antonyms from DeepSeek
           const { definition, synonyms, antonyms } = await getDeepSeekDefinition(word)
 
+          // Get rank from wordData if available (position in sorted ngram data)
+          const rank = wordData.rank || undefined
+          
           // Create or update dictionary entry
           const entry: DictionaryEntry = {
             word,
             definition: definition || undefined,
             synonyms,
             antonyms,
-            frequency: wordData.rank || wordData.freq, // Use rank if available (position in descending order), otherwise fall back to freq
+            frequency: wordData.freq,
+            rank, // Position in descending frequency order
             lastUpdated: new Date()
           }
           
