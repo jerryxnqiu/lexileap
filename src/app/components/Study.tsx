@@ -591,14 +591,16 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
 
         <button
           onClick={handleReady}
-          disabled={preparingQuiz}
+          disabled={preparingQuiz || !quizSessionToken}
           className={`w-full px-6 py-3 rounded-lg font-semibold ${
-            preparingQuiz
+            preparingQuiz || !quizSessionToken
               ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
               : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'
           }`}
         >
           {preparingQuiz
+            ? 'Preparing quiz questions...'
+            : !quizSessionToken
             ? 'Preparing quiz questions...'
             : `Ready to Move to Testing (System will randomly select ${WORDS_TO_TEST} words)`}
         </button>
