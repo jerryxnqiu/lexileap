@@ -6,8 +6,9 @@ import { DictionaryEntry } from '@/types/dictionary'
 
 export const dynamic = 'force-dynamic'
 
-const RATE_LIMIT_DELAY = 1000 // 1 second between API calls
 const MAX_RETRIES = 3
+const CONCURRENT_REQUESTS = 50 // Process 50 API calls in parallel
+const BATCH_DELAY = 200 // Small delay between batches to avoid overwhelming the API
 
 
 async function fetchWithRetry(url: string, body: Record<string, unknown>, maxRetries: number = MAX_RETRIES): Promise<Response> {
@@ -144,6 +145,104 @@ Additional Guidelines:
   }
 }
 
+// Process a single item (word or phrase) and return its definition
+async function processItem(
+  item: { gram: string, freq: number },
+  isPhrase: boolean,
+  collection: any // Firestore CollectionReference
+): Promise<{ 
+  text: string, 
+  result: { definition: string | null, synonyms: string[], antonyms: string[] } | null,
+  skipped: boolean 
+}> {
+  const text = item.gram?.toLowerCase().trim()
+  if (!text) {
+    return { text: '', result: null, skipped: true }
+  }
+
+  try {
+    // Check if already exists (using lowercase key)
+    const docRef = collection.doc(text)
+    const doc = await docRef.get()
+
+    if (doc.exists && doc.data()?.definition) {
+      logger.info(`Skipping "${text}" - already has definition`)
+      return { text, result: null, skipped: true }
+    }
+
+    logger.info(`Processing ${isPhrase ? 'phrase' : 'word'}: "${text}"`)
+    const { definition, synonyms, antonyms } = await getDeepSeekDefinition(text, isPhrase)
+
+    // Store definition for immediate return
+    const result = {
+      definition: definition || null,
+      synonyms: synonyms.map(s => s.toLowerCase().trim()),
+      antonyms: antonyms.map(a => a.toLowerCase().trim())
+    }
+
+    const entry: DictionaryEntry = {
+      word: text.toLowerCase().trim(),
+      definition: definition || undefined,
+      synonyms: synonyms.map(s => s.toLowerCase().trim()),
+      antonyms: antonyms.map(a => a.toLowerCase().trim()),
+      frequency: item.freq,
+      lastUpdated: new Date()
+    }
+
+    const firestoreEntry = Object.fromEntries(
+      Object.entries(entry).filter(([, value]) => value !== undefined)
+    )
+
+    // Save to database in background (don't await - let it happen async)
+    docRef.set(firestoreEntry).catch((error: unknown) => {
+      logger.error(`Failed to save dictionary entry for "${text}":`, error instanceof Error ? error : new Error(String(error)))
+    })
+    logger.info(`Queued dictionary entry save for "${text}"`)
+
+    return { text, result, skipped: false }
+  } catch (error: unknown) {
+    logger.error(`Failed to process ${isPhrase ? 'phrase' : 'word'} "${text}":`, error instanceof Error ? error : new Error(String(error)))
+    return { text, result: null, skipped: false }
+  }
+}
+
+// Process items in parallel batches with controlled concurrency
+async function processBatch<T>(
+  items: T[],
+  processor: (item: T) => Promise<{ text: string, result: any | null, skipped: boolean }>,
+  batchSize: number = CONCURRENT_REQUESTS
+): Promise<{ definitions: Record<string, any>, processed: number, skipped: number }> {
+  const definitions: Record<string, any> = {}
+  let processed = 0
+  let skipped = 0
+
+  // Process in batches
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize)
+    logger.info(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} items`)
+
+    // Process batch in parallel
+    const results = await Promise.all(batch.map(processor))
+
+    // Collect results
+    for (const { text, result, skipped: wasSkipped } of results) {
+      if (wasSkipped) {
+        skipped++
+      } else if (result) {
+        definitions[text] = result
+        processed++
+      }
+    }
+
+    // Small delay between batches to avoid overwhelming the API
+    if (i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
+    }
+  }
+
+  return { definitions, processed, skipped }
+}
+
 // Prepare definitions for words and phrases using DeepSeek
 export async function POST(request: Request) {
   try {
@@ -156,116 +255,19 @@ export async function POST(request: Request) {
     const db = await getDb()
     const collection = db.collection('dictionary')
     
-    let processed = 0
-    let skipped = 0
     const total = words.length + phrases.length
-    const definitions: Record<string, { definition: string | null, synonyms: string[], antonyms: string[] }> = {}
+    logger.info(`Starting to process ${words.length} words and ${phrases.length} phrases (${total} total)`)
 
-    logger.info(`Starting to process ${words.length} words and ${phrases.length} phrases`)
+    // Process words and phrases in parallel batches
+    const [wordsResult, phrasesResult] = await Promise.all([
+      processBatch(words, (item) => processItem(item, false, collection)),
+      processBatch(phrases, (item) => processItem(item, true, collection))
+    ])
 
-    // Process words - ensure lowercase
-    for (const wordItem of words) {
-      const text = wordItem.gram?.toLowerCase().trim()
-      if (!text) continue
-
-      try {
-        // Check if already exists (using lowercase key)
-        const docRef = collection.doc(text)
-        const doc = await docRef.get()
-
-        if (doc.exists && doc.data()?.definition) {
-          skipped++
-          logger.info(`Skipping "${text}" - already has definition`)
-          continue
-        }
-
-        logger.info(`Processing word: "${text}"`)
-        const { definition, synonyms, antonyms } = await getDeepSeekDefinition(text, false)
-
-        // Store definition for immediate return (before saving to DB)
-        definitions[text] = {
-          definition: definition || null,
-          synonyms: synonyms.map(s => s.toLowerCase().trim()),
-          antonyms: antonyms.map(a => a.toLowerCase().trim())
-        }
-
-        const entry: DictionaryEntry = {
-          word: text.toLowerCase().trim(), // Ensure lowercase storage
-          definition: definition || undefined,
-          synonyms: synonyms.map(s => s.toLowerCase().trim()), // Lowercase synonyms
-          antonyms: antonyms.map(a => a.toLowerCase().trim()), // Lowercase antonyms
-          frequency: wordItem.freq,
-          lastUpdated: new Date()
-        }
-
-        const firestoreEntry = Object.fromEntries(
-          Object.entries(entry).filter(([, value]) => value !== undefined)
-        )
-
-        // Save to database in background (don't await - let it happen async)
-        docRef.set(firestoreEntry).catch(error => {
-          logger.error(`Failed to save dictionary entry for "${text}":`, error instanceof Error ? error : new Error(String(error)))
-        })
-        logger.info(`Queued dictionary entry save for "${text}"`)
-        processed++
-
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
-      } catch (error) {
-        logger.error(`Failed to process word "${text}":`, error instanceof Error ? error : new Error(String(error)))
-      }
-    }
-
-    // Process phrases - ensure lowercase
-    for (const phraseItem of phrases) {
-      const text = phraseItem.gram?.toLowerCase().trim()
-      if (!text) continue
-
-      try {
-        // Check if already exists (using lowercase key)
-        const docRef = collection.doc(text)
-        const doc = await docRef.get()
-
-        if (doc.exists && doc.data()?.definition) {
-          skipped++
-          logger.info(`Skipping "${text}" - already has definition`)
-          continue
-        }
-
-        logger.info(`Processing phrase: "${text}"`)
-        const { definition, synonyms, antonyms } = await getDeepSeekDefinition(text, true)
-
-        // Store definition for immediate return (before saving to DB)
-        definitions[text] = {
-          definition: definition || null,
-          synonyms: synonyms.map(s => s.toLowerCase().trim()),
-          antonyms: antonyms.map(a => a.toLowerCase().trim())
-        }
-
-        const entry: DictionaryEntry = {
-          word: text.toLowerCase().trim(), // Ensure lowercase storage
-          definition: definition || undefined,
-          synonyms: synonyms.map(s => s.toLowerCase().trim()), // Lowercase synonyms
-          antonyms: antonyms.map(a => a.toLowerCase().trim()), // Lowercase antonyms
-          frequency: phraseItem.freq,
-          lastUpdated: new Date()
-        }
-
-        const firestoreEntry = Object.fromEntries(
-          Object.entries(entry).filter(([, value]) => value !== undefined)
-        )
-
-        // Save to database in background (don't await - let it happen async)
-        docRef.set(firestoreEntry).catch(error => {
-          logger.error(`Failed to save dictionary entry for phrase "${text}":`, error instanceof Error ? error : new Error(String(error)))
-        })
-        logger.info(`Queued dictionary entry save for phrase "${text}"`)
-        processed++
-
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
-      } catch (error) {
-        logger.error(`Failed to process phrase "${text}":`, error instanceof Error ? error : new Error(String(error)))
-      }
-    }
+    // Combine results
+    const definitions = { ...wordsResult.definitions, ...phrasesResult.definitions }
+    const processed = wordsResult.processed + phrasesResult.processed
+    const skipped = wordsResult.skipped + phrasesResult.skipped
 
     logger.info(`Vocabulary preparation completed: ${processed} processed, ${skipped} skipped`)
 

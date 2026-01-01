@@ -74,8 +74,8 @@ async function getUserStrongWords(userId: string): Promise<string[]> {
 }
 
 
-// Returns dictionary entries (excluding strong words if userId is provided)
-async function getDictionaryWords(userId?: string): Promise<DictionaryEntry[]> {
+// Returns dictionary entries, optionally separated by strong/weak words
+async function getDictionaryWords(userId?: string): Promise<{ weakWords: DictionaryEntry[], strongWords: DictionaryEntry[] }> {
   try {
     const db = await getDb()
     const snapshot = await db.collection('dictionary')
@@ -99,17 +99,22 @@ async function getDictionaryWords(userId?: string): Promise<DictionaryEntry[]> {
       }
     })
 
-    // If userId is provided, exclude strong words (user already knows these well)
+    // If userId is provided, separate into weak and strong words
     if (userId) {
-      const strongWords = await getUserStrongWords(userId)
-      const strongWordsSet = new Set(strongWords.map(w => w.toLowerCase().trim()))
-      return entries.filter(entry => !strongWordsSet.has(entry.word.toLowerCase().trim()))
+      const strongWordsList = await getUserStrongWords(userId)
+      const strongWordsSet = new Set(strongWordsList.map(w => w.toLowerCase().trim()))
+      
+      const weakWords = entries.filter(entry => !strongWordsSet.has(entry.word.toLowerCase().trim()))
+      const strongWords = entries.filter(entry => strongWordsSet.has(entry.word.toLowerCase().trim()))
+      
+      return { weakWords, strongWords }
     }
 
-    return entries
+    // No userId, treat all as weak words
+    return { weakWords: entries, strongWords: [] }
   } catch (error) {
     logger.error('Failed to get dictionary words:', error instanceof Error ? error : new Error(String(error)))
-    return []
+    return { weakWords: [], strongWords: [] }
   }
 }
 
@@ -132,14 +137,15 @@ function getFirstLetter(text: string): string {
 function selectWithLetterDiversity<T extends { gram: string }>(
   items: T[],
   targetCount: number,
-  usedSet: Set<string>
+  usedSet: Set<string>,
+  excludedSet?: Set<string>
 ): T[] {
   if (items.length === 0 || targetCount === 0) return []
   
-  // Filter out already used items
+  // Filter out already used items and excluded items
   const available = items.filter(item => {
     const key = item.gram.toLowerCase().trim()
-    return !usedSet.has(key)
+    return !usedSet.has(key) && !(excludedSet?.has(key))
   })
   
   if (available.length === 0) return []
@@ -225,7 +231,8 @@ function prioritizeWords(
   priorityWords: string[], 
   wordTargetCount: number, 
   phrasesTargetCount: number, 
-  priorityPercentage: number
+  priorityPercentage: number,
+  excludedItems?: Set<string>
 ): { 
   words: WordData[], 
   phrases: WordData[], 
@@ -272,10 +279,10 @@ function prioritizeWords(
   const usedWords = new Set<string>()
   const priorityWordCandidates: WordData[] = []
   
-  // Collect all available priority words (don't mark as used yet)
+  // Collect all available priority words (don't mark as used yet, but exclude if in excludedItems)
   for (const priorityWord of priorityWordsList) {
     const key = priorityWord.toLowerCase().trim()
-    if (wordMap.has(key)) {
+    if (wordMap.has(key) && !excludedItems?.has(key)) {
       priorityWordCandidates.push(wordMap.get(key)!)
     }
   }
@@ -284,7 +291,8 @@ function prioritizeWords(
   const prioritizedWords = selectWithLetterDiversity(
     priorityWordCandidates,
     wordPriorityCount,
-    usedWords
+    usedWords,
+    excludedItems
   )
 
   // Select remaining words from JSON with letter diversity
@@ -292,7 +300,8 @@ function prioritizeWords(
   const remainingWords = selectWithLetterDiversity(
     allWords.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() })),
     remainingWordCount,
-    usedWords
+    usedWords,
+    excludedItems
   )
   const wordsFromJson = remainingWords.map(w => w.gram.toLowerCase().trim())
 
@@ -300,10 +309,10 @@ function prioritizeWords(
   const usedPhrases = new Set<string>()
   const priorityPhraseCandidates: WordData[] = []
   
-  // Collect all available priority phrases (don't mark as used yet)
+  // Collect all available priority phrases (don't mark as used yet, but exclude if in excludedItems)
   for (const priorityPhrase of priorityPhrasesList) {
     const key = priorityPhrase.toLowerCase().trim()
-    if (phraseMap.has(key)) {
+    if (phraseMap.has(key) && !excludedItems?.has(key)) {
       priorityPhraseCandidates.push(phraseMap.get(key)!)
     }
   }
@@ -312,7 +321,8 @@ function prioritizeWords(
   const prioritizedPhrases = selectWithLetterDiversity(
     priorityPhraseCandidates,
     phrasePriorityCount,
-    usedPhrases
+    usedPhrases,
+    excludedItems
   )
 
   // Select remaining phrases from JSON with letter diversity
@@ -320,7 +330,8 @@ function prioritizeWords(
   const remainingPhrases = selectWithLetterDiversity(
     allPhrases.map(p => ({ ...p, gram: p.gram.toLowerCase().trim() })),
     remainingPhraseCount,
-    usedPhrases
+    usedPhrases,
+    excludedItems
   )
   const phrasesFromJson = remainingPhrases.map(p => p.gram.toLowerCase().trim())
 
@@ -344,6 +355,10 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const replacementsParam = searchParams.get('replacements')
+    const replacementCount = replacementsParam ? parseInt(replacementsParam, 10) : 0
+    const excludeParam = searchParams.get('exclude')
+    const excludedItems = excludeParam ? new Set(excludeParam.split(',').map(item => item.toLowerCase().trim())) : new Set<string>()
 
     const storage = await getStorage()
     const bucket = storage.bucket()
@@ -376,9 +391,15 @@ export async function GET(request: Request) {
       logger.error('Failed to load phrases.json:', error instanceof Error ? error : new Error(String(error)))
     }
 
-    const WORDS_TARGET = 200
-    const PHRASES_TARGET = 50
-    const PRIORITY_PERCENTAGE = 0.7 // 70%
+    // If replacements requested, fetch that many extra items (split between words and phrases)
+    const WORDS_TARGET = replacementCount > 0 
+      ? Math.ceil(replacementCount * 0.8) // 80% words for replacements
+      : 200
+    const PHRASES_TARGET = replacementCount > 0
+      ? Math.ceil(replacementCount * 0.2) // 20% phrases for replacements
+      : 50
+    const PRIORITY_PERCENTAGE = replacementCount > 0 ? 0.0 : 0.7 // For replacements, skip priority (get fresh items)
+    const STRONG_WORDS_PERCENTAGE = 0.15 // 15% of priority words should be strong words (for review)
 
     let words: WordData[] = []
     let phrases: WordData[] = []
@@ -388,27 +409,46 @@ export async function GET(request: Request) {
     let matchingDictionaryEntries: DictionaryEntry[] = []
 
     if (userId) {
-      // Get dictionary entries (excluding strong words - all remaining are candidates for re-testing)
-      const dictionaryEntries = await getDictionaryWords(userId) // Excludes strong words internally
+      // Get dictionary entries separated into weak and strong words
+      const { weakWords, strongWords } = await getDictionaryWords(userId)
       
-      // Extract word strings for prioritization (includes both words and phrases)
-      const priorityWords = dictionaryEntries.map(entry => entry.word)
+      // Calculate how many strong words to include (15% of priority portion)
+      const totalPriorityCount = Math.floor((WORDS_TARGET + PHRASES_TARGET) * PRIORITY_PERCENTAGE)
+      const strongWordsCount = Math.floor(totalPriorityCount * STRONG_WORDS_PERCENTAGE)
+      const weakWordsCount = totalPriorityCount - strongWordsCount
       
-      logger.info(`Found ${dictionaryEntries.length} dictionary entries (excluding strong words) for user ${userId}`)
+      // Randomly select strong words for review (with probability)
+      const selectedStrongWords = strongWords
+        .sort(() => Math.random() - 0.5) // Shuffle
+        .slice(0, Math.min(strongWordsCount, strongWords.length))
+        .map(entry => entry.word)
+      
+      // Select weak words (words user got wrong)
+      const selectedWeakWords = weakWords
+        .sort(() => Math.random() - 0.5) // Shuffle
+        .slice(0, Math.min(weakWordsCount, weakWords.length))
+        .map(entry => entry.word)
+      
+      // Combine weak and strong words for prioritization
+      const priorityWords = [...selectedWeakWords, ...selectedStrongWords]
+      
+      logger.info(`Found ${weakWords.length} weak words and ${strongWords.length} strong words for user ${userId}`)
+      logger.info(`Selected ${selectedWeakWords.length} weak words and ${selectedStrongWords.length} strong words for review`)
 
-      // Prioritize words and phrases together: use dictionary entries (excluding strong), then fill rest from JSON
-      const result = prioritizeWords(allWords, allPhrases, priorityWords, WORDS_TARGET, PHRASES_TARGET, PRIORITY_PERCENTAGE)
+      // Prioritize words and phrases together: use dictionary entries (weak + some strong), then fill rest from JSON
+      const result = prioritizeWords(allWords, allPhrases, priorityWords, WORDS_TARGET, PHRASES_TARGET, PRIORITY_PERCENTAGE, excludedItems)
       words = result.words
       phrases = result.phrases
       wordsFromJson = result.wordsFromJson
       phrasesFromJson = result.phrasesFromJson
 
-      // Select dictionary entries that match the selected words and phrases
+      // Select dictionary entries that match the selected words and phrases (from both weak and strong)
       const selectedKeys = new Set<string>()
       words.forEach(w => selectedKeys.add(w.gram.toLowerCase().trim()))
       phrases.forEach(p => selectedKeys.add(p.gram.toLowerCase().trim()))
       
-      matchingDictionaryEntries = dictionaryEntries.filter(entry => 
+      const allDictionaryEntries = [...weakWords, ...strongWords]
+      matchingDictionaryEntries = allDictionaryEntries.filter(entry => 
         selectedKeys.has(entry.word.toLowerCase().trim())
       )
 
@@ -424,12 +464,14 @@ export async function GET(request: Request) {
       words = selectWithLetterDiversity(
         allWords.map(w => ({ ...w, gram: w.gram.toLowerCase().trim() })),
         WORDS_TARGET,
-        usedWordsNoUser
+        usedWordsNoUser,
+        excludedItems
       )
       phrases = selectWithLetterDiversity(
         allPhrases.map(p => ({ ...p, gram: p.gram.toLowerCase().trim() })),
         PHRASES_TARGET,
-        usedPhrasesNoUser
+        usedPhrasesNoUser,
+        excludedItems
       )
       
       wordsFromJson = words.map(w => w.gram)

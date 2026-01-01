@@ -34,6 +34,13 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
     }
   }, [user])
 
+  // Update displayItems whenever words or phrases change (as definitions are loaded)
+  useEffect(() => {
+    const combined = [...words, ...phrases]
+    const shuffled = [...combined].sort(() => Math.random() - 0.5)
+    setDisplayItems(shuffled)
+  }, [words, phrases])
+
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
     if (isTimerRunning && timeRemaining > 0) {
@@ -189,10 +196,112 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         } as DictionaryEntry
       })
       
+      // Step 3: Check for missing definitions and fetch replacements (max 1 round to avoid infinite loops)
+      const wordsWithoutDefs = finalWords.filter(w => !w.definition)
+      const phrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
+      const missingCount = wordsWithoutDefs.length + phrasesWithoutDefs.length
+      
+      if (missingCount > 0 && missingCount <= 10) { // Only fetch replacements if missing <= 10 items
+        setLoadingStep(`Fetching ${missingCount} replacement items to ensure 250 total...`)
+        setLoadingProgress(85)
+        
+        // Fetch replacement items from API (request a few extra to account for potential failures)
+        try {
+          // Build list of excluded items to send to API
+          const usedKeys = [
+            ...finalWords.map(w => w.word.toLowerCase().trim()),
+            ...finalPhrases.map(p => p.word.toLowerCase().trim())
+          ]
+          
+          const excludedParam = usedKeys.join(',')
+          const replacementResponse = await fetch(
+            `/api/vocabulary/load?userId=${encodeURIComponent(user.email)}&replacements=${Math.min(missingCount + 5, 15)}&exclude=${encodeURIComponent(excludedParam)}`
+          )
+          
+          if (replacementResponse.ok) {
+            const replacementData = await replacementResponse.json()
+            
+            // Get replacement words and phrases (API should have already excluded duplicates, but double-check)
+            const usedKeysSet = new Set(usedKeys)
+            
+            const replacementWords = replacementData.words
+              .map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() }))
+              .filter((w: any) => !usedKeysSet.has(w.gram.toLowerCase().trim()))
+              .slice(0, wordsWithoutDefs.length)
+            
+            const replacementPhrases = replacementData.phrases
+              .map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() }))
+              .filter((p: any) => !usedKeysSet.has(p.gram.toLowerCase().trim()))
+              .slice(0, phrasesWithoutDefs.length)
+            
+            // Prepare definitions for replacements
+            if (replacementWords.length > 0 || replacementPhrases.length > 0) {
+              const replacementDefs = await prepareNewWordsFromJson(replacementWords, replacementPhrases)
+              
+              if (replacementDefs?.definitions) {
+                // Convert replacement definitions to DictionaryEntry format
+                Object.entries(replacementDefs.definitions).forEach(([key, defData]) => {
+                  const wordData = [...replacementWords, ...replacementPhrases].find(item => 
+                    (item.gram || '').toLowerCase().trim() === key
+                  )
+                  if (wordData && defData.definition) {
+                    dictionaryMap.set(key, {
+                      word: key,
+                      definition: defData.definition && defData.definition !== null ? defData.definition : undefined,
+                      synonyms: defData.synonyms || [],
+                      antonyms: defData.antonyms || [],
+                      frequency: wordData.freq || 0,
+                      lastUpdated: new Date()
+                    })
+                  }
+                })
+              }
+              
+              // Replace items without definitions with replacements that have definitions
+              let replacementWordIdx = 0
+              let replacementPhraseIdx = 0
+              
+              const updatedWords = finalWords.map(w => {
+                if (!w.definition && replacementWordIdx < replacementWords.length) {
+                  const replacement = replacementWords[replacementWordIdx]
+                  const key = replacement.gram.toLowerCase().trim()
+                  const replacementEntry = dictionaryMap.get(key)
+                  if (replacementEntry?.definition) {
+                    replacementWordIdx++
+                    return replacementEntry
+                  }
+                }
+                return w
+              })
+              
+              const updatedPhrases = finalPhrases.map(p => {
+                if (!p.definition && replacementPhraseIdx < replacementPhrases.length) {
+                  const replacement = replacementPhrases[replacementPhraseIdx]
+                  const key = replacement.gram.toLowerCase().trim()
+                  const replacementEntry = dictionaryMap.get(key)
+                  if (replacementEntry?.definition) {
+                    replacementPhraseIdx++
+                    return replacementEntry
+                  }
+                }
+                return p
+              })
+              
+              // Update final arrays
+              finalWords.splice(0, finalWords.length, ...updatedWords)
+              finalPhrases.splice(0, finalPhrases.length, ...updatedPhrases)
+            }
+          }
+        } catch (error) {
+          // Continue with what we have - silently handle error
+          console.error('Failed to fetch replacement items:', error)
+        }
+      }
+      
       setLoadingProgress(100)
       setLoadingStep('Ready')
       
-      // Step 3: Store words and phrases separately, then create shuffled combined list for display
+      // Step 4: Store words and phrases separately, then create shuffled combined list for display
       setWords(finalWords)
       setPhrases(finalPhrases)
       
@@ -413,6 +522,11 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
       <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
         <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4">
           Vocabulary Table ({words.length} words + {phrases.length} phrases = {words.length + phrases.length} total items)
+          {displayItems.filter(item => item.definition).length < displayItems.length && (
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              ({displayItems.filter(item => item.definition).length} with definitions loaded)
+            </span>
+          )}
         </h2>
         
         {/* Desktop Table View */}
@@ -435,14 +549,14 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {displayItems.map((item, idx) => (
+              {displayItems.filter(item => item.definition).map((item, idx) => (
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-semibold text-gray-900">{item.word}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-700">
-                      {item.definition || <span className="text-gray-400 italic">No definition loaded</span>}
+                      {item.definition}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -467,7 +581,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-4">
-          {displayItems.map((item, idx) => (
+          {displayItems.filter(item => item.definition).map((item, idx) => (
             <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
               <div className="mb-3">
                 <h3 className="text-base font-semibold text-gray-900 mb-2">{item.word}</h3>
@@ -476,7 +590,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
                 <div>
                   <span className="font-medium text-gray-600">Definition: </span>
                   <span className="text-gray-700">
-                    {item.definition || <span className="text-gray-400 italic">No definition loaded</span>}
+                    {item.definition}
                   </span>
                 </div>
                 <div>

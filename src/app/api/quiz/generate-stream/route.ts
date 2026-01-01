@@ -7,6 +7,9 @@ import { encryptSessionId } from '@/libs/utils/encryption'
 
 export const dynamic = 'force-dynamic'
 
+const CONCURRENT_REQUESTS = 50 // Process 50 API calls in parallel
+const BATCH_DELAY = 200 // Small delay between batches to avoid overwhelming the API
+
 // Get a question from the bank for a specific word (if it exists)
 async function getQuestionFromBankForWord(word: string): Promise<QuizQuestion | null> {
   try {
@@ -164,11 +167,33 @@ export async function POST(request: Request) {
           const questions: QuizQuestion[] = []
           const db = await getDb()
 
-          // Process each selected word
-          for (let i = 0; i < words.length; i++) {
-            const wordEntry = words[i]
+          // Process a single word and return the question (or null if skipped)
+          const processWord = async (wordEntry: { word: string, definition?: string, frequency?: number }): Promise<{ question: QuizQuestion | null, word: string, source: 'bank' | 'generated' | 'skipped', error?: string }> => {
             const word = wordEntry.word.toLowerCase().trim()
-            const correctDefinition = wordEntry.definition || 'No definition available'
+            
+            // Get definition from entry, or fetch from database if missing
+            let correctDefinition = wordEntry.definition
+            if (!correctDefinition) {
+              // Try to fetch from dictionary database
+              try {
+                const dictDoc = await db.collection('dictionary').doc(word).get()
+                if (dictDoc.exists) {
+                  const dictData = dictDoc.data()
+                  correctDefinition = dictData?.definition || null
+                  logger.info(`SSE: Fetched definition from database for "${word}"`)
+                }
+              } catch (error) {
+                logger.warn(`SSE: Failed to fetch definition from database for "${word}"`, { 
+                  error: error instanceof Error ? error.message : String(error) 
+                })
+              }
+            }
+            
+            // If still no definition, skip this word
+            if (!correctDefinition) {
+              logger.warn(`SSE: Skipping "${word}" - no definition available`)
+              return { question: null, word, source: 'skipped', error: 'No definition available' }
+            }
             
             // Check if question exists in quiz_questions
             let question = await getQuestionFromBankForWord(word)
@@ -176,18 +201,15 @@ export async function POST(request: Request) {
             if (question) {
               // Use existing question
               logger.info(`SSE: Using existing question for "${word}"`)
-              questions.push(question)
-              send('word', { word, count: questions.length, source: 'bank' })
+              return { question, word, source: 'bank' }
             } else {
               // Generate new question using DeepSeek
               try {
-
                 // Generate options using DeepSeek
                 const aiOptions = await callDeepSeekForOptions(word, correctDefinition)
                 if (!aiOptions || aiOptions.length !== 3) {
                   logger.error(`SSE: Failed to generate options for "${word}"`)
-                  send('error', { word, message: 'Failed to generate options' })
-                  continue
+                  return { question: null, word, source: 'skipped', error: 'Failed to generate options' }
                 }
 
                 // Create question
@@ -206,12 +228,36 @@ export async function POST(request: Request) {
 
                 // Save to quiz_questions bank
                 await saveQuestionToBank(question)
-                questions.push(question)
-                send('word', { word, count: questions.length, source: 'generated' })
+                logger.info(`SSE: Generated and saved question for "${word}"`)
+                return { question, word, source: 'generated' }
               } catch (error) {
                 logger.error(`SSE: Error generating question for "${word}":`, error instanceof Error ? error : new Error(String(error)))
-                send('error', { word, message: 'Generation failed' })
+                return { question: null, word, source: 'skipped', error: 'Generation failed' }
               }
+            }
+          }
+
+          // Process words in parallel batches
+          for (let i = 0; i < words.length; i += CONCURRENT_REQUESTS) {
+            const batch = words.slice(i, i + CONCURRENT_REQUESTS)
+            logger.info(`SSE: Processing batch ${Math.floor(i / CONCURRENT_REQUESTS) + 1}: ${batch.length} words`)
+
+            // Process batch in parallel
+            const results = await Promise.all(batch.map(processWord))
+
+            // Collect results and send SSE events
+            for (const { question, word, source, error } of results) {
+              if (question) {
+                questions.push(question)
+                send('word', { word, count: questions.length, source })
+              } else if (error) {
+                send('error', { word, message: error })
+              }
+            }
+
+            // Small delay between batches to avoid overwhelming the API
+            if (i + CONCURRENT_REQUESTS < words.length) {
+              await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
             }
           }
 
