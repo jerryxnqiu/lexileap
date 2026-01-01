@@ -25,6 +25,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
   const [loadingStep, setLoadingStep] = useState<string>('Initializing...')
   const [timeRemaining, setTimeRemaining] = useState(MAX_STUDY_TIME)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
+  const [timerStartTime, setTimerStartTime] = useState<number | null>(null) // Store when timer started
   const [preparingQuiz, setPreparingQuiz] = useState(false)
   const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
   const [quizSessionToken, setQuizSessionToken] = useState<string | null>(null)
@@ -43,23 +44,57 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
     setDisplayItems(shuffled)
   }, [words, phrases])
 
+  // Timer that works even when page is backgrounded - uses timestamp-based calculation
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
-    if (isTimerRunning && timeRemaining > 0) {
-      interval = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1000) {
-            setIsTimerRunning(false)
-            return 0
-          }
-          return prev - 1000
-        })
-      }, 1000)
+    
+    if (isTimerRunning && timerStartTime !== null) {
+      const updateTimer = () => {
+        const now = Date.now()
+        const elapsed = now - timerStartTime
+        const remaining = Math.max(0, MAX_STUDY_TIME - elapsed)
+        
+        if (remaining <= 0) {
+          setTimeRemaining(0)
+          setIsTimerRunning(false)
+        } else {
+          setTimeRemaining(remaining)
+        }
+      }
+      
+      // Update immediately
+      updateTimer()
+      
+      // Then update every second
+      interval = setInterval(updateTimer, 1000)
     }
+    
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [isTimerRunning, timeRemaining])
+  }, [isTimerRunning, timerStartTime])
+  
+  // Handle page visibility changes (when tab comes back to foreground)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isTimerRunning && timerStartTime !== null) {
+        // Recalculate time when page becomes visible again
+        const now = Date.now()
+        const elapsed = now - timerStartTime
+        const remaining = Math.max(0, MAX_STUDY_TIME - elapsed)
+        setTimeRemaining(remaining)
+        
+        if (remaining <= 0) {
+          setIsTimerRunning(false)
+        }
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isTimerRunning, timerStartTime])
 
   // Loads vocabulary items for a user (or random items if no userId is provided)
   const loadVocabulary = async () => {
@@ -96,6 +131,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
       setLoadingStep('Ready')
 
       // Start timer immediately when content is loaded
+      setTimerStartTime(Date.now())
       setIsTimerRunning(true)
 
       // Prepare quiz questions in the background (pass words directly since state update is async)
@@ -198,27 +234,27 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         } as DictionaryEntry
       })
       
-      // Step 3: Check for missing definitions and fetch replacements (max 2 rounds to avoid infinite loops)
-      const wordsWithoutDefs = finalWords.filter(w => !w.definition)
-      const phrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
+      // Step 3: Check for missing definitions and fetch replacements (more aggressive to ensure 250 items)
+      let wordsWithoutDefs = finalWords.filter(w => !w.definition)
+      let phrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
       let missingCount = wordsWithoutDefs.length + phrasesWithoutDefs.length
       
-      // Try to fetch replacements (allow up to 30 missing items, but fetch in batches)
+      // Try to fetch replacements - be more aggressive with rounds and batch sizes
       let replacementRound = 0
-      const maxReplacementRounds = 2
+      const maxReplacementRounds = 5 // Increased from 2 to 5
       
       while (missingCount > 0 && replacementRound < maxReplacementRounds) {
         replacementRound++
-        const currentWordsWithoutDefs = finalWords.filter(w => !w.definition)
-        const currentPhrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
-        const currentMissingCount = currentWordsWithoutDefs.length + currentPhrasesWithoutDefs.length
+        wordsWithoutDefs = finalWords.filter(w => !w.definition)
+        phrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
+        const currentMissingCount = wordsWithoutDefs.length + phrasesWithoutDefs.length
         
         if (currentMissingCount === 0) break // All definitions loaded, exit loop
         
-        setLoadingStep(`Fetching ${currentMissingCount} replacement items (round ${replacementRound})...`)
-        setLoadingProgress(85 + (replacementRound * 5))
+        setLoadingStep(`Fetching ${currentMissingCount} replacement items (round ${replacementRound}/${maxReplacementRounds})...`)
+        setLoadingProgress(85 + (replacementRound * 3))
         
-        // Fetch replacement items from API (request a few extra to account for potential failures)
+        // Fetch replacement items from API (request significantly more to account for failures)
         try {
           // Build list of excluded items to send to API
           const usedKeys = [
@@ -227,7 +263,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           ]
           
           const excludedParam = usedKeys.join(',')
-          const batchSize = Math.min(currentMissingCount + 10, 30) // Fetch up to 30 at a time
+          // Fetch 2x the missing count to account for potential failures in replacement items too
+          const batchSize = Math.min(currentMissingCount * 2, 50) // Fetch up to 50 at a time, 2x missing count
           const replacementResponse = await fetch(
             `/api/vocabulary/load?userId=${encodeURIComponent(user.email)}&replacements=${batchSize}&exclude=${encodeURIComponent(excludedParam)}`
           )
@@ -238,15 +275,16 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
             // Get replacement words and phrases (API should have already excluded duplicates, but double-check)
             const usedKeysSet = new Set(usedKeys)
             
+            // Get more replacements than needed to account for failures
             const replacementWords = replacementData.words
               .map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() }))
               .filter((w: any) => !usedKeysSet.has(w.gram.toLowerCase().trim()))
-              .slice(0, currentWordsWithoutDefs.length)
+              .slice(0, Math.min(wordsWithoutDefs.length * 2, 50)) // Get 2x needed
             
             const replacementPhrases = replacementData.phrases
               .map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() }))
               .filter((p: any) => !usedKeysSet.has(p.gram.toLowerCase().trim()))
-              .slice(0, currentPhrasesWithoutDefs.length)
+              .slice(0, Math.min(phrasesWithoutDefs.length * 2, 50)) // Get 2x needed
             
             // Prepare definitions for replacements
             if (replacementWords.length > 0 || replacementPhrases.length > 0) {
@@ -272,31 +310,45 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
               }
               
               // Replace items without definitions with replacements that have definitions
-              let replacementWordIdx = 0
-              let replacementPhraseIdx = 0
+              // Separate replacements into words and phrases
+              const availableWordReplacements: DictionaryEntry[] = []
+              const availablePhraseReplacements: DictionaryEntry[] = []
+              
+              for (const replacement of replacementWords) {
+                const key = replacement.gram.toLowerCase().trim()
+                const replacementEntry = dictionaryMap.get(key)
+                if (replacementEntry?.definition) {
+                  availableWordReplacements.push(replacementEntry)
+                }
+              }
+              
+              for (const replacement of replacementPhrases) {
+                const key = replacement.gram.toLowerCase().trim()
+                const replacementEntry = dictionaryMap.get(key)
+                if (replacementEntry?.definition) {
+                  availablePhraseReplacements.push(replacementEntry)
+                }
+              }
+              
+              // Now replace items without definitions
+              let wordReplacementIdx = 0
+              let phraseReplacementIdx = 0
               
               const updatedWords = finalWords.map(w => {
-                if (!w.definition && replacementWordIdx < replacementWords.length) {
-                  const replacement = replacementWords[replacementWordIdx]
-                  const key = replacement.gram.toLowerCase().trim()
-                  const replacementEntry = dictionaryMap.get(key)
-                  if (replacementEntry?.definition) {
-                    replacementWordIdx++
-                    return replacementEntry
-                  }
+                if (!w.definition && wordReplacementIdx < availableWordReplacements.length) {
+                  const replacement = availableWordReplacements[wordReplacementIdx]
+                  wordReplacementIdx++
+                  return replacement
                 }
                 return w
               })
               
+              // Replace phrases
               const updatedPhrases = finalPhrases.map(p => {
-                if (!p.definition && replacementPhraseIdx < replacementPhrases.length) {
-                  const replacement = replacementPhrases[replacementPhraseIdx]
-                  const key = replacement.gram.toLowerCase().trim()
-                  const replacementEntry = dictionaryMap.get(key)
-                  if (replacementEntry?.definition) {
-                    replacementPhraseIdx++
-                    return replacementEntry
-                  }
+                if (!p.definition && phraseReplacementIdx < availablePhraseReplacements.length) {
+                  const replacement = availablePhraseReplacements[phraseReplacementIdx]
+                  phraseReplacementIdx++
+                  return replacement
                 }
                 return p
               })
@@ -315,7 +367,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         } catch (error) {
           // Continue with what we have - silently handle error
           console.error('Failed to fetch replacement items:', error)
-          break // Exit loop on error
+          // Don't break immediately - try one more round
+          if (replacementRound >= 3) break
         }
       }
       
