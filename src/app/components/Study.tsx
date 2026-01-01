@@ -194,7 +194,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
                 definition: defData.definition && defData.definition !== null ? defData.definition : undefined,
                 synonyms: defData.synonyms || [],
                 antonyms: defData.antonyms || [],
-                frequency: wordData.freq || 0,
+                frequency: wordData.rank || wordData.freq || 0, // Use rank if available, otherwise freq
                 lastUpdated: new Date()
               })
             }
@@ -215,7 +215,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           definition: undefined,
           synonyms: [],
           antonyms: [],
-          frequency: w.freq || 0,
+          frequency: w.rank || w.freq || 0, // Use rank if available, otherwise freq
           lastUpdated: new Date(),
           synonymsProcessed: false
         } as DictionaryEntry
@@ -228,7 +228,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           definition: undefined,
           synonyms: [],
           antonyms: [],
-          frequency: p.freq || 0,
+          frequency: p.rank || p.freq || 0, // Use rank if available, otherwise freq
           lastUpdated: new Date(),
           synonymsProcessed: false
         } as DictionaryEntry
@@ -302,7 +302,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
                       definition: defData.definition && defData.definition !== null ? defData.definition : undefined,
                       synonyms: defData.synonyms || [],
                       antonyms: defData.antonyms || [],
-                      frequency: wordData.freq || 0,
+                      frequency: wordData.rank || wordData.freq || 0, // Use rank if available, otherwise freq
                       lastUpdated: new Date()
                     })
                   }

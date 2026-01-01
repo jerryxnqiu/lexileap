@@ -1,6 +1,7 @@
 export interface WordData {
   gram: string
   freq: number
+  rank?: number // Position in descending frequency order (1 = most frequent)
 }
 
 export interface DictionaryEntry {

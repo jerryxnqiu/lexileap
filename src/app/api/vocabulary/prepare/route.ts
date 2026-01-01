@@ -147,7 +147,7 @@ Additional Guidelines:
 
 // Process a single item (word or phrase) and return its definition
 async function processItem(
-  item: { gram: string, freq: number },
+  item: { gram: string, freq: number, rank?: number },
   isPhrase: boolean,
   collection: any // Firestore CollectionReference
 ): Promise<{ 
@@ -185,7 +185,7 @@ async function processItem(
       definition: definition || undefined,
       synonyms: synonyms.map(s => s.toLowerCase().trim()),
       antonyms: antonyms.map(a => a.toLowerCase().trim()),
-      frequency: item.freq,
+      frequency: (item as any).rank || item.freq, // Use rank if available, otherwise fall back to freq
       lastUpdated: new Date()
     }
 

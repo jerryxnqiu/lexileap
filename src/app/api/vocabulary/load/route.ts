@@ -242,19 +242,22 @@ function prioritizeWords(
   prioritizedPhrasesCount: number
 } {
   // Create maps for quick lookup - normalize all to lowercase
+  // Preserve rank information when creating maps
   const wordMap = new Map<string, WordData>()
-  allWords.forEach(w => {
+  allWords.forEach((w, index) => {
     const key = w.gram.toLowerCase().trim()
     if (!wordMap.has(key)) {
-      wordMap.set(key, { ...w, gram: key })
+      // Use rank from data, or calculate from index if not present
+      wordMap.set(key, { ...w, gram: key, rank: w.rank || index + 1 })
     }
   })
 
   const phraseMap = new Map<string, WordData>()
-  allPhrases.forEach(p => {
+  allPhrases.forEach((p, index) => {
     const key = p.gram.toLowerCase().trim()
     if (!phraseMap.has(key)) {
-      phraseMap.set(key, { ...p, gram: key })
+      // Use rank from data, or calculate from index if not present
+      phraseMap.set(key, { ...p, gram: key, rank: p.rank || index + 1 })
     }
   })
 
@@ -363,28 +366,38 @@ export async function GET(request: Request) {
     const storage = await getStorage()
     const bucket = storage.bucket()
 
-    // Load words.json (1gram)
+    // Load words.json (1gram) - already sorted by frequency in descending order
     let allWords: WordData[] = []
     try {
       const wordsFile = bucket.file('data/words.json')
       const [exists] = await wordsFile.exists()
       if (exists) {
         const [contents] = await wordsFile.download()
-        allWords = JSON.parse(contents.toString())
+        const wordsData = JSON.parse(contents.toString())
+        // Add rank based on position in array (1 = most frequent)
+        allWords = wordsData.map((w: WordData, index: number) => ({
+          ...w,
+          rank: index + 1 // Rank 1 is most frequent
+        }))
         logger.info(`Loaded ${allWords.length} words from data/words.json`)
       }
     } catch (error) {
       logger.error('Failed to load words.json:', error instanceof Error ? error : new Error(String(error)))
     }
 
-    // Load phrases.json (2-5gram)
+    // Load phrases.json (2-5gram) - already sorted by frequency in descending order
     let allPhrases: WordData[] = []
     try {
       const phrasesFile = bucket.file('data/phrases.json')
       const [exists] = await phrasesFile.exists()
       if (exists) {
         const [contents] = await phrasesFile.download()
-        allPhrases = JSON.parse(contents.toString())
+        const phrasesData = JSON.parse(contents.toString())
+        // Add rank based on position in array (1 = most frequent)
+        allPhrases = phrasesData.map((p: WordData, index: number) => ({
+          ...p,
+          rank: index + 1 // Rank 1 is most frequent
+        }))
         logger.info(`Loaded ${allPhrases.length} phrases from data/phrases.json`)
       }
     } catch (error) {
