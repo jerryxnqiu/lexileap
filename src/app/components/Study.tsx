@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { User } from '@/types/user'
 import { WordData, DictionaryEntry } from '@/types/dictionary'
+import { ToastContainer, useToast } from '@/app/components/Toast'
 
 const MAX_STUDY_TIME = 30 * 60 * 1000 // 30 minutes in milliseconds
 const WORDS_TO_LOAD = 200
@@ -27,6 +28,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
   const [preparingQuiz, setPreparingQuiz] = useState(false)
   const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
   const [quizSessionToken, setQuizSessionToken] = useState<string | null>(null)
+  const { toasts, removeToast, showInfo, showError } = useToast()
 
   useEffect(() => {
     if (user) {
@@ -196,14 +198,25 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         } as DictionaryEntry
       })
       
-      // Step 3: Check for missing definitions and fetch replacements (max 1 round to avoid infinite loops)
+      // Step 3: Check for missing definitions and fetch replacements (max 2 rounds to avoid infinite loops)
       const wordsWithoutDefs = finalWords.filter(w => !w.definition)
       const phrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
-      const missingCount = wordsWithoutDefs.length + phrasesWithoutDefs.length
+      let missingCount = wordsWithoutDefs.length + phrasesWithoutDefs.length
       
-      if (missingCount > 0 && missingCount <= 10) { // Only fetch replacements if missing <= 10 items
-        setLoadingStep(`Fetching ${missingCount} replacement items to ensure 250 total...`)
-        setLoadingProgress(85)
+      // Try to fetch replacements (allow up to 30 missing items, but fetch in batches)
+      let replacementRound = 0
+      const maxReplacementRounds = 2
+      
+      while (missingCount > 0 && replacementRound < maxReplacementRounds) {
+        replacementRound++
+        const currentWordsWithoutDefs = finalWords.filter(w => !w.definition)
+        const currentPhrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
+        const currentMissingCount = currentWordsWithoutDefs.length + currentPhrasesWithoutDefs.length
+        
+        if (currentMissingCount === 0) break // All definitions loaded, exit loop
+        
+        setLoadingStep(`Fetching ${currentMissingCount} replacement items (round ${replacementRound})...`)
+        setLoadingProgress(85 + (replacementRound * 5))
         
         // Fetch replacement items from API (request a few extra to account for potential failures)
         try {
@@ -214,8 +227,9 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           ]
           
           const excludedParam = usedKeys.join(',')
+          const batchSize = Math.min(currentMissingCount + 10, 30) // Fetch up to 30 at a time
           const replacementResponse = await fetch(
-            `/api/vocabulary/load?userId=${encodeURIComponent(user.email)}&replacements=${Math.min(missingCount + 5, 15)}&exclude=${encodeURIComponent(excludedParam)}`
+            `/api/vocabulary/load?userId=${encodeURIComponent(user.email)}&replacements=${batchSize}&exclude=${encodeURIComponent(excludedParam)}`
           )
           
           if (replacementResponse.ok) {
@@ -227,12 +241,12 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
             const replacementWords = replacementData.words
               .map((w: any) => ({ ...w, gram: (w.gram || '').toLowerCase().trim() }))
               .filter((w: any) => !usedKeysSet.has(w.gram.toLowerCase().trim()))
-              .slice(0, wordsWithoutDefs.length)
+              .slice(0, currentWordsWithoutDefs.length)
             
             const replacementPhrases = replacementData.phrases
               .map((p: any) => ({ ...p, gram: (p.gram || '').toLowerCase().trim() }))
               .filter((p: any) => !usedKeysSet.has(p.gram.toLowerCase().trim()))
-              .slice(0, phrasesWithoutDefs.length)
+              .slice(0, currentPhrasesWithoutDefs.length)
             
             // Prepare definitions for replacements
             if (replacementWords.length > 0 || replacementPhrases.length > 0) {
@@ -290,11 +304,18 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
               // Update final arrays
               finalWords.splice(0, finalWords.length, ...updatedWords)
               finalPhrases.splice(0, finalPhrases.length, ...updatedPhrases)
+              
+              // Recalculate missing count for next iteration
+              missingCount = finalWords.filter(w => !w.definition).length + finalPhrases.filter(p => !p.definition).length
+            } else {
+              // No replacements available, break to avoid infinite loop
+              break
             }
           }
         } catch (error) {
           // Continue with what we have - silently handle error
           console.error('Failed to fetch replacement items:', error)
+          break // Exit loop on error
         }
       }
       
@@ -448,16 +469,24 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
       if (quizSessionToken) {
         onQuizReady(quizSessionToken)
       } else {
-        alert('Quiz questions are still being prepared. Please wait a moment.')
+        showInfo(
+          'Quiz Preparation in Progress',
+          'Quiz questions are still being prepared. Please wait a moment before trying again.'
+        )
       }
     } catch (error) {
-      alert('Failed to start quiz. Please try again.')
+      showError(
+        'Failed to Start Quiz',
+        'Please try again. If the problem persists, refresh the page.'
+      )
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100 flex items-center justify-center">
+      <>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-56 h-56 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200 animate-pulse"></div>
@@ -475,11 +504,14 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           </div>
         </div>
       </div>
+      </>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <div className="max-w-6xl mx-auto">
       <div className="mb-6 flex items-center justify-between sticky top-16 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-sm border border-indigo-100">
         <button 
           onClick={onBack}
@@ -615,5 +647,6 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         </div>
       </div>
     </div>
+    </>
   )
 }
