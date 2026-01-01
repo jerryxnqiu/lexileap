@@ -109,7 +109,7 @@ export default function Home() {
                 <li>🔒 Secure email sign‑in. Sessions expire after 24 hours.</li>
               </ol>
             </div>
-
+            
             <div className="mt-12 text-center">
               <h2 className="text-2xl font-extrabold text-gray-800 mb-4">
                 My daughters loves LexiLeap 💖

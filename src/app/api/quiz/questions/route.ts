@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
           synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
           antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
           frequency: typeof data.frequency === 'number' ? data.frequency : 0,
+          rank: typeof data.rank === 'number' ? data.rank : undefined,
           lastUpdated: data.lastUpdated?.toDate ? data.lastUpdated.toDate().toISOString() : null
         }
       })

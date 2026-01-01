@@ -12,6 +12,7 @@ export function VocabularyList() {
     synonyms?: string[];
     antonyms?: string[];
     frequency?: number;
+    rank?: number;
     lastUpdated?: string | null;
   }>>([]);
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,7 @@ export function VocabularyList() {
             synonyms?: string[];
             antonyms?: string[];
             frequency?: number;
+            rank?: number;
             lastUpdated?: string | null;
           }> 
         };
@@ -77,12 +79,12 @@ export function VocabularyList() {
                   <td className="py-2 px-3 text-gray-700 align-top text-sm">
                     <div className="space-y-1">
                       {it.synonyms && it.synonyms.length > 0 && (
-                        <div>
+                      <div>
                           <span className="font-semibold text-blue-600">Synonyms:</span>{' '}
                           <span className="text-gray-600">{it.synonyms.join(', ')}</span>
-                        </div>
-                      )}
-                      {it.antonyms && it.antonyms.length > 0 && (
+                          </div>
+                        )}
+                        {it.antonyms && it.antonyms.length > 0 && (
                         <div>
                           <span className="font-semibold text-red-600">Antonyms:</span>{' '}
                           <span className="text-gray-600">{it.antonyms.join(', ')}</span>
@@ -90,15 +92,20 @@ export function VocabularyList() {
                       )}
                       {it.frequency !== undefined && it.frequency > 0 && (
                         <div className="text-gray-500 text-xs mt-1">
-                          Frequency: {it.frequency}
+                          Frequency: {it.frequency.toLocaleString()}
+                          {it.rank !== undefined && (
+                            <span className="ml-2 text-indigo-600 font-semibold">
+                              (Rank: #{it.rank.toLocaleString()})
+                            </span>
+                          )}
                         </div>
                       )}
                       {it.lastUpdated && (
                         <div className="text-gray-500 text-xs mt-1">
                           Last updated: {new Date(it.lastUpdated).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
+                          </div>
+                        )}
+                      </div>
                   </td>
                 </tr>
               ))}

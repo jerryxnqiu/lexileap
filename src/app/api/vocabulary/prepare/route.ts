@@ -185,7 +185,8 @@ async function processItem(
       definition: definition || undefined,
       synonyms: synonyms.map(s => s.toLowerCase().trim()),
       antonyms: antonyms.map(a => a.toLowerCase().trim()),
-      frequency: (item as any).rank || item.freq, // Use rank if available, otherwise fall back to freq
+      frequency: item.freq,
+      rank: item.rank, // Position in descending frequency order
       lastUpdated: new Date()
     }
 
@@ -251,6 +252,16 @@ export async function POST(request: Request) {
     if (!Array.isArray(words) || !Array.isArray(phrases)) {
       return NextResponse.json({ error: 'words and phrases must be arrays' }, { status: 400 })
     }
+    
+    // Ensure words and phrases have rank if not provided
+    const wordsWithRank = words.map((w: any, index: number) => ({
+      ...w,
+      rank: w.rank || undefined
+    }))
+    const phrasesWithRank = phrases.map((p: any, index: number) => ({
+      ...p,
+      rank: p.rank || undefined
+    }))
 
     const db = await getDb()
     const collection = db.collection('dictionary')
@@ -260,8 +271,8 @@ export async function POST(request: Request) {
 
     // Process words and phrases in parallel batches
     const [wordsResult, phrasesResult] = await Promise.all([
-      processBatch(words, (item) => processItem(item, false, collection)),
-      processBatch(phrases, (item) => processItem(item, true, collection))
+      processBatch(wordsWithRank, (item) => processItem(item, false, collection)),
+      processBatch(phrasesWithRank, (item) => processItem(item, true, collection))
     ])
 
     // Combine results

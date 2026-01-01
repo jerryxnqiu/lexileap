@@ -94,6 +94,7 @@ async function getDictionaryWords(userId?: string): Promise<{ weakWords: Diction
           synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
           antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
           frequency: typeof data.frequency === 'number' ? data.frequency : 0,
+          rank: typeof data.rank === 'number' ? data.rank : undefined,
           lastUpdated: data.lastUpdated?.toDate() || new Date()
         })
       }
@@ -242,22 +243,19 @@ function prioritizeWords(
   prioritizedPhrasesCount: number
 } {
   // Create maps for quick lookup - normalize all to lowercase
-  // Preserve rank information when creating maps
   const wordMap = new Map<string, WordData>()
-  allWords.forEach((w, index) => {
+  allWords.forEach(w => {
     const key = w.gram.toLowerCase().trim()
     if (!wordMap.has(key)) {
-      // Use rank from data, or calculate from index if not present
-      wordMap.set(key, { ...w, gram: key, rank: w.rank || index + 1 })
+      wordMap.set(key, { ...w, gram: key })
     }
   })
 
   const phraseMap = new Map<string, WordData>()
-  allPhrases.forEach((p, index) => {
+  allPhrases.forEach(p => {
     const key = p.gram.toLowerCase().trim()
     if (!phraseMap.has(key)) {
-      // Use rank from data, or calculate from index if not present
-      phraseMap.set(key, { ...p, gram: key, rank: p.rank || index + 1 })
+      phraseMap.set(key, { ...p, gram: key })
     }
   })
 
@@ -366,7 +364,7 @@ export async function GET(request: Request) {
     const storage = await getStorage()
     const bucket = storage.bucket()
 
-    // Load words.json (1gram) - already sorted by frequency in descending order
+    // Load words.json (1gram) - already sorted by frequency descending
     let allWords: WordData[] = []
     try {
       const wordsFile = bucket.file('data/words.json')
@@ -374,18 +372,18 @@ export async function GET(request: Request) {
       if (exists) {
         const [contents] = await wordsFile.download()
         const wordsData = JSON.parse(contents.toString())
-        // Add rank based on position in array (1 = most frequent)
+        // Add rank based on position in sorted array (1 = most frequent)
         allWords = wordsData.map((w: WordData, index: number) => ({
           ...w,
-          rank: index + 1 // Rank 1 is most frequent
+          rank: index + 1
         }))
-        logger.info(`Loaded ${allWords.length} words from data/words.json`)
+        logger.info(`Loaded ${allWords.length} words from data/words.json (with ranks)`)
       }
     } catch (error) {
       logger.error('Failed to load words.json:', error instanceof Error ? error : new Error(String(error)))
     }
 
-    // Load phrases.json (2-5gram) - already sorted by frequency in descending order
+    // Load phrases.json (2-5gram) - already sorted by frequency descending
     let allPhrases: WordData[] = []
     try {
       const phrasesFile = bucket.file('data/phrases.json')
@@ -393,12 +391,12 @@ export async function GET(request: Request) {
       if (exists) {
         const [contents] = await phrasesFile.download()
         const phrasesData = JSON.parse(contents.toString())
-        // Add rank based on position in array (1 = most frequent)
+        // Add rank based on position in sorted array (1 = most frequent)
         allPhrases = phrasesData.map((p: WordData, index: number) => ({
           ...p,
-          rank: index + 1 // Rank 1 is most frequent
+          rank: index + 1
         }))
-        logger.info(`Loaded ${allPhrases.length} phrases from data/phrases.json`)
+        logger.info(`Loaded ${allPhrases.length} phrases from data/phrases.json (with ranks)`)
       }
     } catch (error) {
       logger.error('Failed to load phrases.json:', error instanceof Error ? error : new Error(String(error)))

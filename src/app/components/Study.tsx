@@ -194,7 +194,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
                 definition: defData.definition && defData.definition !== null ? defData.definition : undefined,
                 synonyms: defData.synonyms || [],
                 antonyms: defData.antonyms || [],
-                frequency: wordData.rank || wordData.freq || 0, // Use rank if available, otherwise freq
+                frequency: wordData.freq || 0,
+                rank: wordData.rank, // Position in descending frequency order
                 lastUpdated: new Date()
               })
             }
@@ -215,7 +216,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           definition: undefined,
           synonyms: [],
           antonyms: [],
-          frequency: w.rank || w.freq || 0, // Use rank if available, otherwise freq
+          frequency: w.freq || 0,
+          rank: w.rank, // Position in descending frequency order
           lastUpdated: new Date(),
           synonymsProcessed: false
         } as DictionaryEntry
@@ -228,7 +230,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
           definition: undefined,
           synonyms: [],
           antonyms: [],
-          frequency: p.rank || p.freq || 0, // Use rank if available, otherwise freq
+          frequency: p.freq || 0,
+          rank: p.rank, // Position in descending frequency order
           lastUpdated: new Date(),
           synonymsProcessed: false
         } as DictionaryEntry
@@ -302,7 +305,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
                       definition: defData.definition && defData.definition !== null ? defData.definition : undefined,
                       synonyms: defData.synonyms || [],
                       antonyms: defData.antonyms || [],
-                      frequency: wordData.rank || wordData.freq || 0, // Use rank if available, otherwise freq
+                      frequency: wordData.freq || 0,
+                      rank: wordData.rank, // Position in descending frequency order
                       lastUpdated: new Date()
                     })
                   }
@@ -401,8 +405,8 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          words: newWords.map(w => ({ gram: w.gram, freq: w.freq })),
-          phrases: newPhrases.map(p => ({ gram: p.gram, freq: p.freq }))
+          words: newWords.map(w => ({ gram: w.gram, freq: w.freq, rank: w.rank })),
+          phrases: newPhrases.map(p => ({ gram: p.gram, freq: p.freq, rank: p.rank }))
         })
       })
 
@@ -640,6 +644,9 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-semibold text-gray-900">{item.word}</div>
+                    {item.rank !== undefined && (
+                      <div className="text-xs text-indigo-600 mt-1">Rank: #{item.rank.toLocaleString()}</div>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-700">
@@ -672,6 +679,9 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
             <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
               <div className="mb-3">
                 <h3 className="text-base font-semibold text-gray-900 mb-2">{item.word}</h3>
+                {item.rank !== undefined && (
+                  <div className="text-xs text-indigo-600 mb-1">Rank: #{item.rank.toLocaleString()}</div>
+                )}
               </div>
               <div className="space-y-2 text-sm">
                 <div>

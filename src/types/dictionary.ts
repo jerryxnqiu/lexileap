@@ -10,6 +10,7 @@ export interface DictionaryEntry {
   synonyms: string[]
   antonyms: string[]
   frequency: number
+  rank?: number // Position in descending frequency order (1 = most frequent)
   lastUpdated: Date
 }
 
