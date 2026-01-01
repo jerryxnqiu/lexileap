@@ -195,7 +195,12 @@ async function getWordsFromStorage(): Promise<WordData[]> {
         if (exists) {
           const [contents] = await file.download()
           const words: WordData[] = JSON.parse(contents.toString())
-          allWords.push(...words)
+          // Add rank based on position in array (1 = most frequent, already sorted by frequency descending)
+          const wordsWithRank = words.map((w, index) => ({
+            ...w,
+            rank: index + 1 // Rank 1 is most frequent
+          }))
+          allWords.push(...wordsWithRank)
           logger.info(`Loaded ${words.length} words from ${filePath}`)
         }
       } catch (error) {
@@ -265,7 +270,7 @@ export async function POST() {
             definition: definition || undefined,
             synonyms,
             antonyms,
-            frequency: wordData.freq,
+            frequency: wordData.rank || wordData.freq, // Use rank if available (position in descending order), otherwise fall back to freq
             lastUpdated: new Date()
           }
           
