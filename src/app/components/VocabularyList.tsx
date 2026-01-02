@@ -94,7 +94,7 @@ export function VocabularyList() {
                         <div className="text-gray-500 text-xs mt-1">
                           Frequency: {it.frequency.toLocaleString()}
                           {it.rank !== undefined && (
-                            <span className="ml-2 text-indigo-600 font-semibold">
+                            <span className="ml-2 text-gray-500">
                               (Rank: #{it.rank.toLocaleString()})
                             </span>
                           )}
