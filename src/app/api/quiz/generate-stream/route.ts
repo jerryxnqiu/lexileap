@@ -68,10 +68,13 @@ CRITICAL REQUIREMENTS:
 - Return EXACTLY 3 incorrect definitions as a JSON array of strings
 - Each definition must be a complete sentence or phrase (not just a single word)
 - Each definition should be plausible but clearly different from the correct meaning
-- Keep each definition concise (max 15 words)
-- Use simple language suitable for children under 12 years old
+- MATCH THE LENGTH AND DETAIL LEVEL of the correct definition (approximately ${correctDefinition.split(' ').length} words)
+- Use simple language suitable for children under 12 years old (same style as the correct definition)
+- Each distractor should be similarly detailed and well-written as the correct answer
+- Do NOT make distractors noticeably shorter or less detailed than the correct answer
 - Do NOT repeat or closely mirror the correct definition
 - Make the distractors believable but wrong (e.g., for "cat", don't use "a type of dog")
+- Ensure all 4 options (correct + 3 distractors) are similar in length and quality
 
 RETURN FORMAT:
 Return ONLY a valid JSON array with exactly 3 string elements, for example:
@@ -88,7 +91,7 @@ Do NOT include any explanation, markdown formatting, or additional text - ONLY t
           { role: 'user', content: prompt }
         ],
         temperature: 0.8,
-        max_tokens: 200
+        max_tokens: 400
       })
     })
     if (!resp.ok) return null
