@@ -6,8 +6,8 @@ import { WordData, DictionaryEntry } from '@/types/dictionary'
 import { ToastContainer, useToast } from '@/app/components/Toast'
 
 const MAX_STUDY_TIME = 30 * 60 * 1000 // 30 minutes in milliseconds
-const WORDS_TO_LOAD = 200
-const PHRASES_TO_LOAD = 50
+const WORDS_TO_LOAD = 120
+const PHRASES_TO_LOAD = 30
 const WORDS_TO_TEST = 50 // System will randomly select 50 for quiz
 
 interface StudyProps {
@@ -237,7 +237,7 @@ export function Study({ user, onQuizReady, onBack }: StudyProps) {
         } as DictionaryEntry
       })
       
-      // Step 3: Check for missing definitions and fetch replacements (more aggressive to ensure 250 items)
+      // Step 3: Check for missing definitions and fetch replacements (more aggressive to ensure 150 items)
       let wordsWithoutDefs = finalWords.filter(w => !w.definition)
       let phrasesWithoutDefs = finalPhrases.filter(p => !p.definition)
       let missingCount = wordsWithoutDefs.length + phrasesWithoutDefs.length

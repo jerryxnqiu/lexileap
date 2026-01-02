@@ -86,8 +86,8 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({
       sessionId,
       userId: sessionData.userId,
-      startTime: sessionData.startTime,
-      endTime: attemptData?.completedAt ?? sessionData.endTime,
+      startTime: convertTimestamp(sessionData.startTime) || convertTimestamp(attemptData?.startTime) || '',
+      endTime: convertTimestamp(attemptData?.completedAt) || convertTimestamp(sessionData.endTime) || undefined,
       score: attemptData?.score ?? sessionData.score,
       totalQuestions: questions.length,
       questions: merged

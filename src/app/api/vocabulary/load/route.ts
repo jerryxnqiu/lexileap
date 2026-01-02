@@ -405,10 +405,10 @@ export async function GET(request: Request) {
     // If replacements requested, fetch that many extra items (split between words and phrases)
     const WORDS_TARGET = replacementCount > 0 
       ? Math.ceil(replacementCount * 0.8) // 80% words for replacements
-      : 200
+      : 120
     const PHRASES_TARGET = replacementCount > 0
       ? Math.ceil(replacementCount * 0.2) // 20% phrases for replacements
-      : 50
+      : 30
     const PRIORITY_PERCENTAGE = replacementCount > 0 ? 0.0 : 0.7 // For replacements, skip priority (get fresh items)
     const STRONG_WORDS_PERCENTAGE = 0.15 // 15% of priority words should be strong words (for review)
 

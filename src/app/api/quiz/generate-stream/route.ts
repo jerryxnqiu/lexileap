@@ -263,11 +263,11 @@ export async function POST(request: Request) {
 
           // Create and save session with all 50 questions
           const now = new Date()
-          const dateStr = now.toISOString().split('T')[0]
-          const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-')
-          const hash = Math.random().toString(36).substring(2, 8)
-          const sanitizedUserId = userId.replace(/[^a-zA-Z0-9]/g, '_')
-          const sessionId = `study_${dateStr}_${timeStr}_${sanitizedUserId}_${hash}`
+          // Use shorter, more meaningful session ID: quiz_YYYYMMDD_HHMMSS_hash
+          const dateStr = now.toISOString().split('T')[0].replace(/-/g, '')
+          const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '').substring(0, 6)
+          const hash = Math.random().toString(36).substring(2, 6)
+          const sessionId = `quiz_${dateStr}_${timeStr}_${hash}`
 
           const session = {
             id: sessionId,
