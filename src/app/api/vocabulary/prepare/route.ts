@@ -190,12 +190,19 @@ async function processItem(
       lastUpdated: new Date()
     }
 
-    const firestoreEntry = Object.fromEntries(
-      Object.entries(entry).filter(([, value]) => value !== undefined)
-    )
+    // Build firestore entry, including rank even if it's 0
+    const firestoreEntry: Record<string, unknown> = {}
+    if (entry.word) firestoreEntry.word = entry.word
+    if (entry.definition) firestoreEntry.definition = entry.definition
+    if (entry.synonyms && entry.synonyms.length > 0) firestoreEntry.synonyms = entry.synonyms
+    if (entry.antonyms && entry.antonyms.length > 0) firestoreEntry.antonyms = entry.antonyms
+    if (entry.frequency) firestoreEntry.frequency = entry.frequency
+    if (entry.rank !== undefined) firestoreEntry.rank = entry.rank // Include rank even if it's 0
+    firestoreEntry.lastUpdated = entry.lastUpdated
 
     // Save to database in background (don't await - let it happen async)
-    docRef.set(firestoreEntry).catch((error: unknown) => {
+    // Use merge: true to update existing entries with rank
+    docRef.set(firestoreEntry, { merge: true }).catch((error: unknown) => {
       logger.error(`Failed to save dictionary entry for "${text}":`, error instanceof Error ? error : new Error(String(error)))
     })
     logger.info(`Queued dictionary entry save for "${text}"`)

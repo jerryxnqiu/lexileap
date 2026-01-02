@@ -180,9 +180,9 @@ async function getWordsFromStorage(): Promise<WordData[]> {
     const storage = await getStorage()
     const bucket = storage.bucket()
 
-    // Try to get words from all ngram data (1-5gram)
+    // Try to get words from data/words.json (already sorted by frequency descending)
     const files = [
-      'google-ngram/1gram_top.json'
+      'data/words.json' // Use the consolidated file that's already sorted
     ]
 
     const allWords: WordData[] = []
@@ -194,9 +194,14 @@ async function getWordsFromStorage(): Promise<WordData[]> {
 
         if (exists) {
           const [contents] = await file.download()
-          const words: WordData[] = JSON.parse(contents.toString())
-          allWords.push(...words)
-          logger.info(`Loaded ${words.length} words from ${filePath}`)
+          const wordsData: WordData[] = JSON.parse(contents.toString())
+          // Add rank based on position in sorted array (1 = most frequent)
+          const wordsWithRank = wordsData.map((w: WordData, index: number) => ({
+            ...w,
+            rank: index + 1
+          }))
+          allWords.push(...wordsWithRank)
+          logger.info(`Loaded ${wordsWithRank.length} words from ${filePath} (with ranks)`)
         }
       } catch (error) {
         logger.warn(`Failed to load ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
@@ -273,13 +278,18 @@ export async function POST() {
             lastUpdated: new Date()
           }
           
-          // Remove undefined values before saving to Firestore
-          const firestoreEntry = Object.fromEntries(
-            Object.entries(entry).filter(([, value]) => value !== undefined)
-          )
+          // Remove undefined values before saving to Firestore, but keep rank even if it's 0
+          const firestoreEntry: Record<string, unknown> = {}
+          if (entry.word) firestoreEntry.word = entry.word
+          if (entry.definition) firestoreEntry.definition = entry.definition
+          if (entry.synonyms && entry.synonyms.length > 0) firestoreEntry.synonyms = entry.synonyms
+          if (entry.antonyms && entry.antonyms.length > 0) firestoreEntry.antonyms = entry.antonyms
+          if (entry.frequency) firestoreEntry.frequency = entry.frequency
+          if (entry.rank !== undefined) firestoreEntry.rank = entry.rank // Include rank even if it's 0
+          firestoreEntry.lastUpdated = entry.lastUpdated
 
-          // Save to Firestore
-          await docRef.set(firestoreEntry)
+          // Save to Firestore (use merge: true to update existing entries with rank)
+          await docRef.set(firestoreEntry, { merge: true })
           logger.info(`Saved dictionary entry for "${word}": definition=${!!definition}, synonyms=${synonyms.length}, antonyms=${antonyms.length}`)
 
           processed++
