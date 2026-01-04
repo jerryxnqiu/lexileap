@@ -132,6 +132,49 @@ export function EmailAuth({ onLogin }: EmailAuthProps) {
     }
   };
 
+  // Auto-submit when all 6 digits are entered
+  useEffect(() => {
+    if (step === 'code' && !isLoading) {
+      const combined = codeDigits.join('');
+      if (combined.length === 6 && combined.trim().length === 6) {
+        // All 6 digits are filled, automatically verify
+        const verifyCode = async () => {
+          setError('');
+          setIsLoading(true);
+          
+          try {
+            const response = await fetch('/api/auth/verify-code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ 
+                email: email.trim(), 
+                code: combined 
+              }),
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+              setError(data.error || 'Failed to verify code');
+              setIsLoading(false);
+              return;
+            }
+            
+            // Login successful
+            onLogin(email.trim(), name.trim() || undefined, data?.user?.isAdmin);
+          } catch {
+            setError('Something went wrong. Please try again.');
+            setIsLoading(false);
+          }
+        };
+        
+        verifyCode();
+      }
+    }
+  }, [codeDigits, step, isLoading, email, name, onLogin]);
+
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
       if (codeDigits[index]) {
